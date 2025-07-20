@@ -15,126 +15,65 @@
     <link rel="shortcut icon" href="/src/logo.png" type="image/x-icon" />
     <link rel="apple-touch-icon" href="/src/logo.png" />
     <link rel="apple-touch-startup-image" href="/src/logo.png" />
-    <link rel="manifest" href="src/manifest.json" />
+    <link rel="manifest" href="src/manifest.json">
     <script defer src="https://cloud.umami.is/script.js" data-website-id="5bc2bb09-f397-45b5-8e69-d5e7fc95a24d"></script>
-
     <style>
       footer {
         background-color: #111;
-        color: #aaa;
-        padding: 20px;
+        color: #ccc;
+        padding: 20px 10px;
         text-align: center;
         font-size: 14px;
-        margin-top: 60px;
         border-top: 1px solid #333;
       }
-      footer a {
+      .footer-links {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .footer-links a {
         color: #4fc3f7;
         text-decoration: none;
-        margin: 0 8px;
+        font-weight: 500;
       }
-      footer a:hover {
+      .footer-links a:hover {
         text-decoration: underline;
+        color: white;
       }
-
-      /* Chatbot styles */
-      #chatbot {
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        z-index: 1000;
+      .footer-credit {
+        font-size: 12px;
+        color: #888;
       }
-
-      #chatWindow {
-        display: none;
-        position: absolute;
-        bottom: 60px;
-        right: 0;
-        width: 260px;
-        background: #1e1e1e;
-        border: 1px solid #333;
-        border-radius: 12px;
-        padding: 12px;
-        color: #eee;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.6);
-        animation: fadeIn 0.3s ease-in-out;
+      .footer-credit a {
+        color: #aaa;
+        text-decoration: none;
       }
-
-      #chatWindow input {
-        width: 100%;
-        padding: 8px;
-        margin-top: 10px;
-        border-radius: 6px;
-        border: none;
-        background: #333;
-        color: #fff;
-      }
-
-      #chatLog {
-        margin-top: 10px;
-        max-height: 120px;
-        overflow-y: auto;
-        font-size: 13px;
-      }
-
-      @keyframes fadeIn {
-        from {opacity: 0; transform: translateY(10px);}
-        to {opacity: 1; transform: translateY(0);}
+      .footer-credit a:hover {
+        color: white;
+        text-decoration: underline;
       }
     </style>
   </head>
-
   <body class="bg-[#090a0a]">
     <div id="root"></div>
 
-    <!-- Footer -->
     <footer>
-      <p>
-        <a href="/faq.html">FAQ</a> |
-        <a href="/about.html">About</a> |
-        <a href="/contact.html">Contact</a> |
-        <a href="/support.html">Support</a> |
-        <a href="/disclaimer.html">Disclaimer</a> |
-        <a href="/terms.html">Terms</a> |
+      <div class="footer-links">
+        <a href="/faq.html">FAQ</a>
+        <a href="/about.html">About</a>
+        <a href="/contact.html">Contact</a>
+        <a href="/support.html">Support</a>
+        <a href="/disclaimer.html">Disclaimer</a>
+        <a href="/terms.html">Terms</a>
         <a href="/privacy.html">Privacy</a>
-      </p>
-      <p>&copy; 2025 <a href="https://github.com/Sandipeyy" target="_blank">Sandip Gurung</a>. All rights reserved.</p>
+      </div>
+      <div class="footer-credit">
+        &copy; 2025 <a href="https://github.com/Sandipeyy" target="_blank">NepoFlix</a>. All rights reserved.
+      </div>
     </footer>
 
-    <!-- Chatbot -->
-    <div id="chatbot">
-      <button onclick="toggleBot()" style="padding: 12px 16px; border-radius: 50%; background-color: #4FC3F7; border: none; font-size: 18px;">🤖</button>
-      <div id="chatWindow">
-        <strong>NepoBot</strong>
-        <div id="chatLog"><div>Hi! Ask me anything 👋</div></div>
-        <input id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter'){sendMessage()}"/>
-      </div>
-    </div>
-
-    <script>
-      function toggleBot() {
-        const win = document.getElementById("chatWindow");
-        win.style.display = win.style.display === "none" ? "block" : "none";
-      }
-
-      function sendMessage() {
-        const input = document.getElementById("chatInput");
-        const log = document.getElementById("chatLog");
-
-        if (input.value.trim()) {
-          const msg = input.value;
-          log.innerHTML += `<div><b>You:</b> ${msg}</div>`;
-          input.value = "";
-
-          setTimeout(() => {
-            log.innerHTML += `<div><b>Bot:</b> I'm still learning! 🤖</div>`;
-            log.scrollTop = log.scrollHeight;
-          }, 800);
-        }
-      }
-    </script>
-
-    <!-- Vite & instant.page -->
     <script type="module" src="/src/main.jsx"></script>
     <script src="//instant.page/5.2.0" type="module" integrity="sha384-jnZyxPjiipYXnSU0ygqeac2q7CVYMbh84q0uHVRRxEtvFPiQYbXWUorga2aqZJ0z"></script>
   </body>
