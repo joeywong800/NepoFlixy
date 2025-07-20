@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Contact Us - NepoFlix</title>
+  <meta name="description" content="Contact NepoFlix support and team." />
+  <meta name="theme-color" content="#0b0b0b" />
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: linear-gradient(135deg, #0f0f0f, #1c1c1c);
+      color: #fff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 40px 20px;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 20px;
+      color: #4fc3f7;
+      animation: fadeInDown 1s ease;
+      text-align: center;
+    }
+    .content {
+      max-width: 700px;
+      font-size: 1.1rem;
+      line-height: 1.7;
+      animation: fadeIn 1.5s ease;
+      text-align: center;
+    }
+    a.back-link {
+      display: inline-block;
+      margin-top: 30px;
+      color: #4fc3f7;
+      text-decoration: none;
+      font-weight: 600;
+      border: 2px solid #4fc3f7;
+      padding: 12px 24px;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+      animation: fadeInUp 2s ease;
+    }
+    a.back-link:hover {
+      background-color: #4fc3f7;
+      color: #0b0b0b;
+    }
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-30px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
+      h1 { font-size: 2rem; }
+      .content { font-size: 1rem; padding: 0 10px; }
+      a.back-link { padding: 10px 20px; font-size: 0.95rem; }
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 1.8rem; }
+      .content { font-size: 0.95rem; }
+      a.back-link { padding: 8px 16px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>📞 Contact Us</h1>
+  <div class="content">
+    <p>If you have any questions, suggestions, or issues, feel free to reach out to us.</p>
+    <p>Email: <a href="mailto:contact.nepoflix@gmail.com" style="color:#4fc3f7;">contact.nepoflix@gmail.com</a></p>
+    <p>We aim to respond within 24-48 hours.</p>
+    <a class="back-link" href="index.html">← Back to Home</a>
+  </div>
+</body>
+</html>
