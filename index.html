@@ -16,61 +16,46 @@
     <link rel="apple-touch-icon" href="/src/logo.png" />
     <link rel="apple-touch-startup-image" href="/src/logo.png" />
     <link rel="manifest" href="src/manifest.json">
-    <script defer src="https://cloud.umami.is/script.js" data-website-id="5bc2bb09-f397-45b5-8e69-d5e7fc95a24d"></script>
     <style>
       footer {
-        background-color: #111;
+        background: #111;
         color: #ccc;
-        padding: 20px 10px;
         text-align: center;
+        padding: 20px;
+        font-family: sans-serif;
         font-size: 14px;
-        border-top: 1px solid #333;
+        line-height: 1.6;
       }
-      .footer-links {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 12px;
-        margin-bottom: 10px;
-      }
-      .footer-links a {
+      footer a {
         color: #4fc3f7;
-        text-decoration: none;
-        font-weight: 500;
-      }
-      .footer-links a:hover {
-        text-decoration: underline;
-        color: white;
-      }
-      .footer-credit {
-        font-size: 12px;
-        color: #888;
-      }
-      .footer-credit a {
-        color: #aaa;
+        margin: 0 10px;
         text-decoration: none;
       }
-      .footer-credit a:hover {
-        color: white;
+      footer a:hover {
         text-decoration: underline;
+      }
+      @media screen and (max-width: 600px) {
+        footer { font-size: 13px; padding: 15px; }
+        footer a { display: block; margin: 5px 0; }
       }
     </style>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="5bc2bb09-f397-45b5-8e69-d5e7fc95a24d"></script>
   </head>
   <body class="bg-[#090a0a]">
     <div id="root"></div>
 
     <footer>
-      <div class="footer-links">
-        <a href="/faq.html">FAQ</a>
-        <a href="/about.html">About</a>
-        <a href="/contact.html">Contact</a>
-        <a href="/support.html">Support</a>
-        <a href="/disclaimer.html">Disclaimer</a>
-        <a href="/terms.html">Terms</a>
-        <a href="/privacy.html">Privacy</a>
+      <div>
+        <a href="faq.html">FAQ</a> |
+        <a href="about.html">About Us</a> |
+        <a href="contact.html">Contact</a> |
+        <a href="support.html">Support</a> |
+        <a href="disclaimer.html">Disclaimer</a> |
+        <a href="terms.html">Terms of Service</a> |
+        <a href="privacy.html">Privacy Policy</a>
       </div>
-      <div class="footer-credit">
-        &copy; 2025 <a href="https://github.com/Sandipeyy" target="_blank">NepoFlix</a>. All rights reserved.
+      <div style="margin-top:10px;">
+        © 2025 <a href="https://github.com/Sandipeyy" target="_blank">NepoFlix</a>. All rights reserved.
       </div>
     </footer>
 
