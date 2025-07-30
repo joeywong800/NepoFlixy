@@ -1,5 +1,5 @@
 {
-    "proxy": "https://a.quickwatch.co/api/proxy",
+    "proxy": "https://a.quickwatch.co",
     "m3u8proxy": "https://p.quickwatch.co",
     "tmdbApiKey": "Bearer eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI3MmJhMTBjNDI5OTE0MTU3MzgwOGQyNzEwNGVkMThmYSIsInN1YiI6IjY0ZjVhNTUwMTIxOTdlMDBmZWE5MzdmMSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.84b7vWpVEilAbly4RpS01E9tyirHdhSXjcpfmTczI3Q",
     "tmdbBaseUrl": "https://api.themoviedb.org/3",
