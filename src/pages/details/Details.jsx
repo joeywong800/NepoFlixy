@@ -204,10 +204,12 @@ const Details = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [watchData, setWatchData] = useState({ season: 1, episode: 1, name: '' });
   const [firstEpisodeName, setFirstEpisodeName] = useState('');
+  const [trailerData, setTrailerData] = useState(null);
   
   // Get state from URL parameters
   const showDownloads = searchParams.get('dl') === '1';
   const watchModalOpen = searchParams.get('watch') === '1';
+  const trailerModalOpen = searchParams.get('trailer') === '1';
   const urlSeason = parseInt(searchParams.get('season')) || 1;
   const urlEpisode = parseInt(searchParams.get('episode')) || 1;
 
@@ -300,6 +302,14 @@ const Details = () => {
     } finally { setEpisodesLoading(false); }
   };
 
+  // Handle trailer click
+  const handleTrailerClick = (video) => {
+    setTrailerData(video);
+    const newParams = new URLSearchParams(searchParams);
+    newParams.set('trailer', '1');
+    setSearchParams(newParams);
+  };
+
   if (error) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center"><div className="text-red-500 text-xl">Error: {error}</div></div>
@@ -371,7 +381,11 @@ const Details = () => {
             )}
             
             {/* Trailers & More */}
-            <CategorySection title="Trailers & More" items={trailers} isLoading={isLoading} layout="horizontal" renderItem={(video) => <TrailerCard video={video} variant="episode" />} />
+            <CategorySection title="Trailers & More" items={trailers} isLoading={isLoading} layout="horizontal" renderItem={(video) => (
+              <div onClick={() => handleTrailerClick(video)} className="cursor-pointer">
+                <TrailerCard video={video} variant="episode" />
+              </div>
+            )} />
             
             {/* Cast & Crew */}
             {cast.length > 0 && (
@@ -386,10 +400,11 @@ const Details = () => {
       
       {/* Watch Modal */}
       <Watch 
-        isOpen={watchModalOpen}
+        isOpen={watchModalOpen || trailerModalOpen}
         onClose={() => {
           const newParams = new URLSearchParams(searchParams);
           newParams.delete('watch');
+          newParams.delete('trailer');
           newParams.delete('season');
           newParams.delete('episode');
           setSearchParams(newParams);
@@ -408,6 +423,8 @@ const Details = () => {
         episodes={episodes}
         seasons={seasons}
         selectedSeason={selectedSeason}
+        isTrailerMode={trailerModalOpen}
+        trailerData={trailerData}
       />
     </div>
   );
