@@ -3,6 +3,7 @@ import { PlaySolid, PauseSolid, SoundOffSolid, SoundLowSolid, SoundHighSolid, Ex
 import SubtitleManager from './subtitles';
 import SettingsManager from './settings';
 import { formatTime } from './helpers';
+import { isMobileDevice } from '../../utils';
 
 const ControlButton = ({ onClick, children, className = "", ...props }) => {
   const baseClasses = "border-none cursor-pointer p-2 rounded-lg flex items-center justify-center transition-all duration-200 ease-in-out w-[46px] h-[46px] relative overflow-hidden focus:outline-none";
@@ -45,6 +46,7 @@ const PlayerTemplate = ({
   showControls,
   isFullscreen,
   isPictureInPicture,
+  isVideoLoading,
   
   // Volume slider state
   showVolumeSlider,
@@ -105,7 +107,13 @@ const PlayerTemplate = ({
     <div ref={playerRef} className={`fixed top-0 left-0 w-screen h-screen bg-black ${showControls ? 'cursor-default' : 'cursor-none'}`} onMouseMove={onMouseMove} onClick={onTogglePlay}>
       <video ref={videoRef} className="w-full h-full object-contain" onError={onVideoError}/>
       
-      {subtitlesEnabled && currentSubtitleText && (
+      {isVideoLoading && (
+        <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="text-white text-xl font-medium">Loading video...</div>
+        </div>
+      )}
+      
+      {subtitlesEnabled && currentSubtitleText && !isMobileDevice() && (
         <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 pointer-events-none">
           <span 
             className="inline-block px-4 py-2 bg-black/80 text-white text-lg font-medium rounded-md shadow-lg max-w-4xl text-center leading-relaxed"
@@ -184,6 +192,7 @@ const PlayerTemplate = ({
               availableSubtitles={availableSubtitles}
               selectedSubtitle={selectedSubtitle}
               selectSubtitle={onSelectSubtitle}
+              container={isFullscreen ? playerRef.current : undefined}
             />
 
             <SettingsManager
@@ -195,6 +204,7 @@ const PlayerTemplate = ({
               playbackSpeed={playbackSpeed}
               onSpeedChange={onSpeedChange}
               qualitiesLoading={qualitiesLoading}
+              container={isFullscreen ? playerRef.current : undefined}
             />
 
             <ControlButton onClick={onToggleFullscreen}>
