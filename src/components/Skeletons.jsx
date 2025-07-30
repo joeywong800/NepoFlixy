@@ -84,3 +84,31 @@ export const SearchSkeleton = () => {
     </div>
   );
 };
+
+export const AnimeSpotlightSkeleton = () => {
+  return (
+    <section className="relative bg-anime-card-bg rounded-2xl overflow-hidden h-[55vh] mb-4 animate-fade-in">
+      <div className="absolute inset-0 bg-gradient-to-t from-anime-background/90 via-anime-background/50 to-transparent"></div>
+      
+      <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full md:w-3/5 lg:w-1/2 z-10">
+        <div className="skeleton-base skeleton-shimmer w-4/5 h-12 md:h-16 mb-3 rounded-lg"></div>
+        
+        <div className="mb-6 space-y-2">
+          <div className="skeleton-base skeleton-shimmer w-full h-4 rounded"></div>
+          <div className="skeleton-base skeleton-shimmer w-5/6 h-4 rounded"></div>
+          <div className="skeleton-base skeleton-shimmer w-3/4 h-4 rounded"></div>
+        </div>
+        
+        <div className="flex items-center space-x-3">
+          <div className="skeleton-base skeleton-shimmer w-32 h-10 rounded-lg"></div>
+          <div className="skeleton-base skeleton-shimmer w-24 h-10 rounded-lg"></div>
+        </div>
+      </div>
+      
+      <div className="absolute bottom-6 right-6 md:bottom-10 md:right-10 flex space-x-2 z-10">
+        <div className="skeleton-base skeleton-shimmer w-10 h-10 rounded-lg"></div>
+        <div className="skeleton-base skeleton-shimmer w-10 h-10 rounded-lg"></div>
+      </div>
+    </section>
+  );
+};
