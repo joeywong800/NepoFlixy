@@ -25,10 +25,11 @@ function DropdownMenuTrigger({
 function DropdownMenuContent({
   className,
   sideOffset = 4,
+  container,
   ...props
 }) {
   return (
-    (<DropdownMenuPrimitive.Portal>
+    (<DropdownMenuPrimitive.Portal container={container}>
       <DropdownMenuPrimitive.Content
         data-slot="dropdown-menu-content"
         sideOffset={sideOffset}
