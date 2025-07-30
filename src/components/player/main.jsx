@@ -1,9 +1,31 @@
 import React, { useEffect, useState, useRef } from 'react';
 import PlayerTemplate from './template';
-import { initializeHLS, setupVideoEventListeners, handleSeek, skipTime, togglePlay, toggleMute, handleVolumeChange, toggleFullscreen, togglePictureInPicture, showControlsTemporarily, parseTimeToSeconds, changePlaybackSpeed, changeQuality } from './helpers';
+import { initializeVideo, setupVideoEventListeners, handleSeek, skipTime, togglePlay, toggleMute, handleVolumeChange, toggleFullscreen, togglePictureInPicture, showControlsTemporarily, parseTimeToSeconds, changePlaybackSpeed, changeQuality } from './helpers';
 import { saveProgress, getProgress } from '../progress';
+import { isMobileDevice } from '../../utils';
 
-const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopup, subtitlesEnabled, subtitleError, subtitlesLoading, availableSubtitles, selectedSubtitle, onSelectSubtitle, subtitleCues, mediaId, mediaType, season = 0, episode = 0, sourceIndex = 0 }) => {
+const VideoPlayer = ({ 
+  videoUrl, 
+  originalVideoUrl,
+  onError, 
+  showCaptionsPopup, 
+  setShowCaptionsPopup, 
+  subtitlesEnabled, 
+  subtitleError, 
+  subtitlesLoading, 
+  availableSubtitles, 
+  selectedSubtitle, 
+  onSelectSubtitle, 
+  subtitleCues, 
+  availableQualities: externalQualities,
+  selectedQuality: externalSelectedQuality,
+  onQualityChange: externalOnQualityChange,
+  mediaId, 
+  mediaType, 
+  season = 0, 
+  episode = 0, 
+  sourceIndex = 0 
+}) => {
   // Video state
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -16,6 +38,7 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
   const [isDragging, setIsDragging] = useState(false);
   const [bufferedAmount, setBufferedAmount] = useState(0);
   const [isProgressHovered, setIsProgressHovered] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
   
   // Volume slider state
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
@@ -161,13 +184,16 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
     };
   }, [videoUrl, mediaId, mediaType, season, episode, sourceIndex]);
 
-  // Initialize HLS when videoUrl changes
+  // Initialize video when videoUrl changes
   useEffect(() => {
     if (videoUrl) {
+      setIsVideoLoading(true);
       setQualitiesLoading(true);
-      initializeHLS(videoUrl, videoRef, hlsRef, onError, setAvailableQualities);
+      initializeVideo(videoUrl, videoRef, hlsRef, onError, setAvailableQualities);
       setQualitiesLoading(false);
       setProgressLoaded(false);
+    } else {
+      setIsVideoLoading(true);
     }
 
     return () => {
@@ -179,16 +205,85 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
   }, [videoUrl, onError]);
 
   useEffect(() => {
-    return setupVideoEventListeners(videoRef, setCurrentTime, setDuration, setIsPlaying, setVolume, setIsMuted, setIsPictureInPicture, setBufferedAmount);
+    const cleanup = setupVideoEventListeners(videoRef, setCurrentTime, setDuration, setIsPlaying, setVolume, setIsMuted, setIsPictureInPicture, setBufferedAmount);
+    
+    const handleCanPlay = () => { setIsVideoLoading(false); };
+    const handleWaiting = () => { setIsVideoLoading(true); };
+    const handleLoadStart = () => { setIsVideoLoading(true); };
+    const handleSeeking = () => { setIsVideoLoading(true); };
+    const handleSeeked = () => { setIsVideoLoading(false); };
+    
+    // Optimize buffering for partial content
+    const handleProgress = () => {
+      if (videoRef.current && videoRef.current.buffered.length > 0) {
+        const buffered = videoRef.current.buffered;
+        const currentTime = videoRef.current.currentTime;
+        
+        // Calculate buffered amount more accurately
+        let bufferedEnd = 0;
+        for (let i = 0; i < buffered.length; i++) {
+          if (buffered.start(i) <= currentTime && buffered.end(i) > currentTime) {
+            bufferedEnd = buffered.end(i);
+            break;
+          }
+        }
+        
+        if (bufferedEnd === 0 && buffered.length > 0) {
+          bufferedEnd = buffered.end(buffered.length - 1);
+        }
+        
+        const duration = videoRef.current.duration;
+        if (duration > 0) {
+          setBufferedAmount((bufferedEnd / duration) * 100);
+        }
+      }
+    };
+
+    if (videoRef.current) {
+      videoRef.current.addEventListener('canplay', handleCanPlay);
+      videoRef.current.addEventListener('waiting', handleWaiting);
+      videoRef.current.addEventListener('loadstart', handleLoadStart);
+      videoRef.current.addEventListener('seeking', handleSeeking);
+      videoRef.current.addEventListener('seeked', handleSeeked);
+      videoRef.current.addEventListener('progress', handleProgress);
+    }
+
+    return () => {
+      cleanup();
+      if (videoRef.current) {
+        videoRef.current.removeEventListener('canplay', handleCanPlay);
+        videoRef.current.removeEventListener('waiting', handleWaiting);
+        videoRef.current.removeEventListener('loadstart', handleLoadStart);
+        videoRef.current.removeEventListener('seeking', handleSeeking);
+        videoRef.current.removeEventListener('seeked', handleSeeked);
+        videoRef.current.removeEventListener('progress', handleProgress);
+      }
+    };
   }, [videoUrl]);
 
-  useEffect(() => {
-    if (availableQualities.length > 0 && !selectedQuality) {
-      setSelectedQuality(availableQualities[0]);
-    }
-  }, [availableQualities, selectedQuality]);
+  // Use external qualities if provided, otherwise use internal ones
+  const finalAvailableQualities = externalQualities || availableQualities;
+  const finalSelectedQuality = externalSelectedQuality || selectedQuality;
 
   useEffect(() => {
+    if (availableQualities.length > 0 && !selectedQuality && !externalQualities) {
+      setSelectedQuality(availableQualities[0]);
+    }
+  }, [availableQualities, selectedQuality, externalQualities]);
+
+  useEffect(() => {
+    if (externalSelectedQuality && externalSelectedQuality !== selectedQuality) {
+      setSelectedQuality(externalSelectedQuality);
+    }
+  }, [externalSelectedQuality, selectedQuality]);
+
+  useEffect(() => {
+    // Only show custom subtitles on non-mobile devices
+    if (isMobileDevice()) {
+      setCurrentSubtitleText('');
+      return;
+    }
+
     if (!subtitlesEnabled || !selectedSubtitle || !subtitleCues || subtitleCues.length === 0) {
       setCurrentSubtitleText('');
       return;
@@ -202,6 +297,105 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
 
     setCurrentSubtitleText(currentCue ? currentCue.text : '');
   }, [currentTime, subtitlesEnabled, selectedSubtitle, subtitleCues]);
+
+  useEffect(() => {
+    if (!videoRef.current) return;
+
+    // Only load native tracks on mobile devices
+    if (!isMobileDevice()) { return; }
+
+    const video = videoRef.current;
+    
+    // Remove existing subtitle tracks
+    const existingTracks = video.querySelectorAll('track[kind="subtitles"]');
+    existingTracks.forEach(track => track.remove());
+
+    // Add new subtitle track if one is selected
+    if (selectedSubtitle && selectedSubtitle.url) {
+      const track = document.createElement('track');
+      track.kind = 'subtitles';
+      track.label = selectedSubtitle.display || selectedSubtitle.language || 'Subtitles';
+      track.srclang = selectedSubtitle.language || 'en';
+      track.default = true;
+      
+      if (selectedSubtitle.url.includes('.srt') || selectedSubtitle.format === 'srt') {
+        convertSRTToVTTBlob(selectedSubtitle.url).then(vttBlob => {
+          if (vttBlob) {
+            track.src = URL.createObjectURL(vttBlob);
+            video.appendChild(track);
+            
+            track.addEventListener('load', () => {
+              if (track.track) {
+                track.track.mode = subtitlesEnabled ? 'showing' : 'hidden';
+              }
+            });
+          }
+        }).catch(err => {
+          console.error('Failed to convert SRT to VTT:', err);
+        });
+      } else {
+        track.src = selectedSubtitle.url;
+        video.appendChild(track);
+        
+        // Enable the track
+        track.addEventListener('load', () => {
+          if (track.track) {
+            track.track.mode = subtitlesEnabled ? 'showing' : 'hidden';
+          }
+        });
+      }
+    }
+
+    const tracks = video.textTracks;
+    for (let i = 0; i < tracks.length; i++) {
+      if (tracks[i].kind === 'subtitles') {
+        tracks[i].mode = subtitlesEnabled ? 'showing' : 'hidden';
+      }
+    }
+  }, [selectedSubtitle, subtitlesEnabled]);
+
+  // Helper function to convert SRT to VTT
+  const convertSRTToVTTBlob = async (srtUrl) => {
+    try {
+      const response = await fetch(srtUrl, {
+        mode: 'cors',
+        headers: {'Accept': 'text/plain, text/vtt, application/x-subrip'}
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch SRT: ${response.status}`);
+      }
+      
+      const srtText = await response.text();
+      const vttText = convertSRTToVTT(srtText);
+      
+      return new Blob([vttText], { type: 'text/vtt' });
+    } catch (err) {
+      console.error('Error converting SRT to VTT:', err);
+      return null;
+    }
+  };
+
+  // Helper function to convert SRT format to VTT format
+  const convertSRTToVTT = (srtText) => {
+    let vttText = 'WEBVTT\n\n';
+    
+    const blocks = srtText.trim().split(/\n\s*\n/);
+    
+    blocks.forEach(block => {
+      const lines = block.trim().split('\n');
+      if (lines.length >= 3) {
+        const timeString = lines[1];
+        const text = lines.slice(2).join('\n');
+        
+        const vttTimeString = timeString.replace(/,/g, '.');
+        
+        vttText += `${vttTimeString}\n${text}\n\n`;
+      }
+    });
+    
+    return vttText;
+  };
 
   // Handle progress bar dragging
   useEffect(() => {
@@ -370,8 +564,12 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
   };
 
   const handleQualityChange = (quality) => {
-    setSelectedQuality(quality);
-    changeQuality(quality, hlsRef, videoRef, currentTime);
+    if (externalOnQualityChange) {
+      externalOnQualityChange(quality);
+    } else {
+      setSelectedQuality(quality);
+      changeQuality(quality, hlsRef, videoRef, currentTime);
+    }
     saveProgressNow();
   };
 
@@ -481,6 +679,7 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
       showControls={showControls}
       isFullscreen={isFullscreen}
       isPictureInPicture={isPictureInPicture}
+      isVideoLoading={isVideoLoading}
       
       // Volume slider state
       showVolumeSlider={showVolumeSlider}
@@ -502,8 +701,8 @@ const VideoPlayer = ({ videoUrl, onError, showCaptionsPopup, setShowCaptionsPopu
       showSettingsPopup={showSettingsPopup}
       setShowSettingsPopup={setShowSettingsPopup}
       playbackSpeed={playbackSpeed}
-      availableQualities={availableQualities}
-      selectedQuality={selectedQuality}
+      availableQualities={finalAvailableQualities}
+      selectedQuality={finalSelectedQuality}
       qualitiesLoading={qualitiesLoading}
       
       // Event handlers
