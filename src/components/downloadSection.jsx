@@ -8,6 +8,7 @@ const DownloadSection = ({ item, mediaType, tmdbId }) => {
   const [normalDownloads, setNormalDownloads] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [loadingProgress, setLoadingProgress] = useState('Initializing...');
 
   useEffect(() => {
     const fetchDownloads = async () => {
@@ -15,12 +16,18 @@ const DownloadSection = ({ item, mediaType, tmdbId }) => {
       
       setIsLoading(true);
       setError(null);
+      setLoadingProgress('Initializing...');
       
       try {
-        const [allTorrents, allNormalDownloads] = await Promise.all([ fetchAllTorrents(mediaType, tmdbId, item), fetchNormalDownloads(mediaType, tmdbId, item) ]);
+        const progressCallback = (message) => setLoadingProgress(message);
         
+        const allTorrents = await fetchAllTorrents(mediaType, tmdbId, item, progressCallback);
         setTorrents(allTorrents);
+        
+        const allNormalDownloads = await fetchNormalDownloads(mediaType, tmdbId, item, progressCallback);
         setNormalDownloads(allNormalDownloads);
+        
+        setLoadingProgress('Completed!');
       } catch (error) {
         console.error('Error fetching downloads:', error);
         setError(error.message);
@@ -50,8 +57,9 @@ const DownloadSection = ({ item, mediaType, tmdbId }) => {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-bold text-white mb-4">Download sources loading...</h2>
-        <div className="flex items-center justify-center py-12">
-          <div className="w-8 h-8 border-2 border-white border-solid border-t-transparent rounded-full animate-spin"></div>
+        <div className="flex flex-col items-center justify-center py-12">
+          <div className="w-8 h-8 border-2 border-white border-solid border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-zinc-300 text-xs">{loadingProgress}</p>
         </div>
       </div>
     );
@@ -141,7 +149,7 @@ const DownloadSection = ({ item, mediaType, tmdbId }) => {
                 <div>
                   <h3 className="text-yellow-200 font-medium mb-1">Torrenting Client Required</h3>
                   <p className="text-yellow-200/80 text-sm">
-                    To download torrents from QuickWatch, you need a torrenting client installed. We recommend{' '}
+                    To download torrents from NepoFlix, you need a torrenting client installed. We recommend{' '}
                     <a href="https://www.qbittorrent.org/download" className="underline hover:text-yellow-100" target="_blank" rel="noopener noreferrer">qBittorrent</a>
                     , but you can use any client you prefer.
                   </p>
