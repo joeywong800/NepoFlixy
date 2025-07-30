@@ -1,4 +1,5 @@
 import { toast } from 'sonner';
+import MobileDetect from 'mobile-detect';
 import config from './config.json';
 
 const { tmdbApiKey, tmdbBaseUrl, tmdbImageBaseUrl } = config;
@@ -206,4 +207,14 @@ export const getLogoPath = (detailedItem) => {
     }
   }
   return null;
+};
+
+export const isMobileDevice = () => {
+  const md = new MobileDetect(window.navigator.userAgent);
+  return md.mobile() !== null || md.phone() !== null;
+};
+
+export const isPhone = () => {
+  const md = new MobileDetect(window.navigator.userAgent);
+  return md.phone() !== null;
 };
