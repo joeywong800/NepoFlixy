@@ -6,10 +6,11 @@ const SettingsManager = ({
   setShowSettingsPopup, 
   availableQualities, 
   selectedQuality, 
-  onSelectQuality,
-  playbackSpeed,
-  onSpeedChange,
-  qualitiesLoading 
+  onSelectQuality, 
+  playbackSpeed, 
+  onSpeedChange, 
+  qualitiesLoading,
+  container 
 }) => {
   const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
   const currentSpeedIndex = speedOptions.indexOf(playbackSpeed);
@@ -60,6 +61,7 @@ const SettingsManager = ({
               : 'animate-modal-scale-out opacity-0 scale-85'
           }`}
           sideOffset={8}
+          container={container}
           style={{
             transformOrigin: 'bottom right',
             willChange: 'transform, opacity'
