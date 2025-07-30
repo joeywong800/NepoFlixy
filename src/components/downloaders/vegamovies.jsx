@@ -1,10 +1,38 @@
 import { fetchTmdb } from '../../utils.jsx';
 import config from '../../config.json';
+import Fuse from 'fuse.js';
 
-const domains = ["vegamovies.cd", "vegamovies.ss"];
+const domain = "vegamovies.bh"; // make it somehow automatically find the latest domain instead of manually updating it.
 
-const getRandomDomain = () => {
-  return domains[Math.floor(Math.random() * domains.length)];
+const findBestFuzzyMatch = (targetTitle, targetYear, candidates) => {
+  const fuseOptions = {
+    keys: ['title'],
+    threshold: 0.6,
+    includeScore: true,
+    includeMatches: true,
+    ignoreLocation: true,
+    findAllMatches: true,
+    minMatchCharLength: 2,
+    shouldSort: true,
+    getFn: (obj, path) => {
+      const title = obj.title;
+      if (targetYear && title.includes(targetYear)) { return `${title} YEAR_MATCH_BOOST`; }
+      return title;
+    }
+  };
+  
+  const searchQuery = targetYear ? `${targetTitle} ${targetYear}` : targetTitle;
+  const fuse = new Fuse(candidates, fuseOptions);
+  const results = fuse.search(searchQuery);
+  
+  if (results.length === 0) {
+    return null;
+  }
+  
+  const bestResult = results[0];
+  const score = 1 - bestResult.score;
+  
+  return { candidate: bestResult.item, index: candidates.indexOf(bestResult.item), score: score };
 };
 
 const extractQualityTags = (title) => {
@@ -41,12 +69,11 @@ const extractQualityTags = (title) => {
 
 const searchVegamovies = async (searchQuery, proxyUrl) => {
   try {
-    const selectedDomain = getRandomDomain();
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        url: `https://${selectedDomain}`,
+        url: `https://${domain}`,
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -71,8 +98,7 @@ const getVegamoviesPage = async (href, proxyUrl) => {
   try {
     let fullUrl = href;
     if (href.startsWith('/')) {
-      const selectedDomain = getRandomDomain();
-      fullUrl = `https://${selectedDomain}${href}`;
+      fullUrl = `https://${domain}${href}`;
     }
     
     const response = await fetch(proxyUrl, {
@@ -125,26 +151,26 @@ export const getVegamoviesDownloads = async (tmdbId) => {
       return [];
     }
     
-    let selectedPostItem = null;
-    
-    for (const postItem of postItems) {
+    const candidates = [];
+    postItems.forEach((postItem, index) => {
       const aTag = postItem.querySelector('a[title]');
       if (aTag) {
-        const title = aTag.getAttribute('title').toLowerCase();
-        const movieTitleLower = tmdbData.title.toLowerCase();
-        
-        if (title.includes(movieTitleLower) && title.includes(releaseYear)) {
-          selectedPostItem = postItem;
-          console.log('Found better match based on title and year:', title);
-          break;
-        }
+        const title = aTag.getAttribute('title');
+        candidates.push({ title, postItem, index });
       }
-    }
+    });
     
-    if (!selectedPostItem) {
-      selectedPostItem = postItems[0];
-      console.log('Using first search result as fallback');
-    }
+    let selectedPostItem = null;
+    
+    if (candidates.length > 0) {
+      const bestMatch = findBestFuzzyMatch(tmdbData.title, releaseYear, candidates);
+      
+      if (bestMatch && bestMatch.score > 0.3) {
+        selectedPostItem = bestMatch.candidate.postItem;
+      } else {
+        selectedPostItem = postItems[0];
+      }
+    } else { return []; }
     
     const aTag = selectedPostItem.querySelector('a');
     if (!aTag) {
