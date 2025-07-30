@@ -158,7 +158,7 @@ export const fetchTorrentGalaxyTorrents = async (imdbId) => {
 export const fetchShowboxDownload = async (tmdbId, mediaType, title) => {
   try {
     const downloadLink = await getShowboxDownloadLink(tmdbId, mediaType);
-    if (downloadLink) { return { url: downloadLink, title: title, source: 'Showbox', type: 'stream', tags: ['Multiple qualities', 'Account requried'] }; }
+    if (downloadLink) { return { url: downloadLink, title: title, source: 'Showbox', type: 'stream', tags: ['⭐ Recommended', 'Multiple qualities'] }; }
     
     return null;
   } catch (error) {
@@ -207,7 +207,7 @@ export const fetchTorrentioTorrents = async (imdbId) => {
   }
 };
 
-export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
+export const fetchAllTorrents = async (mediaType, tmdbId, item, onProgress = null) => {
   try {
     const externalIds = await fetchTmdb(`/${mediaType}/${tmdbId}/external_ids`);
     const imdbId = externalIds.imdb_id;
@@ -219,9 +219,11 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
 
     // Fetch Anime torrents (for anime)
     try {
+      if (onProgress) onProgress('Checking anime status...');
       const { isAnime, anilistId } = await checkAnimeStatus(imdbId);
       console.log('Anime check result:', { isAnime, anilistId });
       if (isAnime && anilistId) {
+        if (onProgress) onProgress('Finding Nyaa.si downloads...');
         const animeTorrents = await fetchAnimeTorrents(anilistId, mediaTitle);
         console.log('Anime torrents found:', animeTorrents.length);
         allTorrents.push(...animeTorrents);
@@ -231,6 +233,7 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
     // Fetch YTS torrents (for movies)
     if (mediaType === 'movie') {
       try {
+        if (onProgress) onProgress('Finding YTS.MX downloads...');
         console.log('Fetching YTS torrents for movie:', imdbId);
         const movieTorrents = await fetchYtxTorrents(imdbId);
         console.log('YTS torrents found:', movieTorrents.length);
@@ -240,6 +243,7 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
 
     // Fetch Torrentio torrents
     try {
+      if (onProgress) onProgress('Finding Torrentio downloads...');
       console.log('Fetching Torrentio torrents for:', imdbId);
       const torrentioTorrents = await fetchTorrentioTorrents(imdbId);
       console.log('Torrentio torrents found:', torrentioTorrents.length);
@@ -248,6 +252,7 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
 
     // Fetch TorrentGalaxy torrents
     try {
+      if (onProgress) onProgress('Finding TorrentGalaxy downloads...');
       console.log('Fetching TorrentGalaxy torrents for:', imdbId);
       const tgTorrents = await fetchTorrentGalaxyTorrents(imdbId);
       console.log('TorrentGalaxy torrents found:', tgTorrents.length);
@@ -259,6 +264,7 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
       const { proxy } = config;
       console.log('Proxy config:', proxy);
       if (proxy) {
+        if (onProgress) onProgress('Finding Pirate Bay downloads...');
         console.log('Fetching Pirate Bay torrents for:', mediaTitle);
         const pbTorrents = await fetchPirateBayTorrents(mediaTitle, mediaType, proxy);
         console.log('Pirate Bay torrents found:', pbTorrents.length);
@@ -271,12 +277,13 @@ export const fetchAllTorrents = async (mediaType, tmdbId, item) => {
   } catch (error) { console.error('Error fetching torrents:', error); throw error; }
 };
 
-export const fetchNormalDownloads = async (mediaType, tmdbId, item) => {
+export const fetchNormalDownloads = async (mediaType, tmdbId, item, onProgress = null) => {
   try {
     const normalDownloads = [];
     
     // Fetch Showbox download
     try {
+      if (onProgress) onProgress('Finding Showbox downloads...');
       const releaseYear = item.release_date?.split('-')[0] || item.first_air_date?.split('-')[0] || '';
       const showboxDownload = await fetchShowboxDownload(tmdbId, mediaType, `${item.title || item.name} (${releaseYear})`);
       if (showboxDownload) {
@@ -288,6 +295,7 @@ export const fetchNormalDownloads = async (mediaType, tmdbId, item) => {
     
     if (mediaType === 'movie') {
       try {
+        if (onProgress) onProgress('Finding Vegamovies downloads...');
         console.log('Fetching Vegamovies downloads for movie:', tmdbId);
         const vegamoviesDownloads = await getVegamoviesDownloads(tmdbId);
         console.log('Vegamovies downloads found:', vegamoviesDownloads.length);
