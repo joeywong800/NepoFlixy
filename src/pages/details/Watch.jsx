@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { X, Tv, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getSource } from './Sources.jsx';
 import { initializeSourceTracking } from '../../components/progress/index.jsx';
-import { fetchTmdb } from '../../utils.jsx';
+import { fetchTmdb, isMobileDevice, isPhone } from '../../utils.jsx';
 import MobileOrientationPrompt from './MobileOrientationPrompt.jsx';
 import {
   DropdownMenu,
@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "../../components/ui/dropdown-menu";
 
-const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, episode = 1, title, episodes = [], seasons = [], selectedSeason = null }) => {
+const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, episode = 1, title, episodes = [], seasons = [], selectedSeason = null, isTrailerMode = false, trailerData = null }) => {
   const [currentSource, setCurrentSource] = useState('Native');
   const [currentEpisode, setCurrentEpisode] = useState(episode);
   const [currentSeason, setCurrentSeason] = useState(season);
@@ -32,6 +32,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
   
   const sources = [
     'Native',
+    'Resident',
     'VidLink', 
     'VidsrcXYZ',
     'VidFast',
@@ -50,18 +51,19 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
     return sourcesWithSandbox.includes(source);
   };
 
-  const currentUrl = getSource(currentSource, mediaType, id, currentSeason, currentEpisode);
+  const currentUrl = isTrailerMode && trailerData 
+    ? `https://www.youtube.com/embed/${trailerData.key}?autoplay=1&rel=0&modestbranding=1`
+    : getSource(currentSource, mediaType, id, currentSeason, currentEpisode);
 
   useEffect(() => {
-    const checkMobileAndOrientation = () => {
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || window.innerWidth < 768;
-      
+    const checkMobileAndOrientation = () => {      
       const landscape = window.innerWidth > window.innerHeight;
-      setIsMobile(isMobileDevice);
+      setIsMobile(isMobileDevice());
       setIsLandscape(landscape);
       
-      if (isMobileDevice && !landscape && isOpen && !useMobileLayout) { setShowOrientationPrompt(true); }
-      if (isMobileDevice) { setUseMobileLayout(true); }
+      // Use isPhone for orientation prompt (tablets don't need this as much)
+      if (isPhone() && !landscape && isOpen && !useMobileLayout) { setShowOrientationPrompt(true); }
+      if (isMobileDevice()) { setUseMobileLayout(true); }
     };
 
     checkMobileAndOrientation();
@@ -270,7 +272,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
         <div className="flex items-center justify-between p-4 bg-black/90">
           <div className="flex items-center gap-2 flex-1">
-            {mediaType === 'tv' && (
+            {!isTrailerMode && mediaType === 'tv' && (
               <button onClick={goToPreviousEpisode} disabled={!canGoToPrevious()}
                 className={`p-2 rounded-full transition-colors ${
                   canGoToPrevious() 
@@ -283,12 +285,14 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
             )}
             
             <h2 className="text-white text-sm font-medium truncate">
-              {mediaType === 'tv' ? (
+              {isTrailerMode ? (
+                trailerData?.name || 'Trailer'
+              ) : mediaType === 'tv' ? (
                 <span>S{currentSeason}E{currentEpisode} - {currentTitle}</span>
               ) : (currentTitle)}
             </h2>
             
-            {mediaType === 'tv' && (
+            {!isTrailerMode && mediaType === 'tv' && (
               <button onClick={goToNextEpisode} disabled={!canGoToNext()}
                 className={`p-2 rounded-full transition-colors ${
                   canGoToNext() 
@@ -302,24 +306,26 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
           </div>
           
           <div className="flex items-center gap-2">
-            <DropdownMenu>
-              <DropdownMenuTrigger className="bg-zinc-900 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-800 transition-colors">
-                <Tv className="w-4 h-4" />
-                <span className="text-sm">{currentSource}</span>
-                <ChevronDown className="h-3 w-3" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg z-50 min-w-[150px]">
-                {sources.map((source) => (
-                  <DropdownMenuItem key={source} onClick={() => handleSourceChange(source)}
-                    className={`px-4 py-2 text-white hover:bg-white/10 transition-colors ${
-                      currentSource === source ? 'bg-white/20' : ''
-                    }`}
-                  >
-                    {source}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!isTrailerMode && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="bg-zinc-900 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-800 transition-colors">
+                  <Tv className="w-4 h-4" />
+                  <span className="text-sm">{currentSource}</span>
+                  <ChevronDown className="h-3 w-3" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg z-50 min-w-[150px]">
+                  {sources.map((source) => (
+                    <DropdownMenuItem key={source} onClick={() => handleSourceChange(source)}
+                      className={`px-4 py-2 text-white hover:bg-white/10 transition-colors ${
+                        currentSource === source ? 'bg-white/20' : ''
+                      }`}
+                    >
+                      {source}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             <button onClick={onClose} className="bg-zinc-900 text-white p-2 rounded-lg hover:bg-zinc-800 transition-colors">
               <X className="w-5 h-5" />
@@ -341,7 +347,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
         <div className="flex items-center justify-center p-2 relative">
           {/* Centered Title */}
           <div className="flex items-center gap-3">
-             {mediaType === 'tv' && (
+             {!isTrailerMode && mediaType === 'tv' && (
                <button
                  onClick={goToPreviousEpisode}
                  disabled={!canGoToPrevious()}
@@ -356,7 +362,9 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
              )}
             
             <h2 className="text-white text-lg font-medium">
-              {mediaType === 'tv' ? (
+              {isTrailerMode ? (
+                trailerData?.name || 'Trailer'
+              ) : mediaType === 'tv' ? (
                 <span>
                   S{currentSeason}E{currentEpisode} - {currentTitle}
                 </span>
@@ -365,7 +373,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
               )}
             </h2>
             
-             {mediaType === 'tv' && (
+             {!isTrailerMode && mediaType === 'tv' && (
                <button
                  onClick={goToNextEpisode}
                  disabled={!canGoToNext()}
@@ -383,26 +391,28 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
           {/* Absolutely positioned controls on top right border */}
           <div className="absolute -top-4 -right-4 flex items-center gap-2">
             {/* Source Switcher */}
-            <DropdownMenu>
-              <DropdownMenuTrigger className="bg-zinc-900 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-colors border-l border border-white/20">
-                <Tv className="w-4 h-4" />
-                <span>{currentSource}</span>
-                <ChevronDown className="h-4 w-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg z-50 min-w-[150px]">
-                {sources.map((source) => (
-                  <DropdownMenuItem
-                    key={source}
-                    onClick={() => handleSourceChange(source)}
-                    className={`px-4 py-2 text-white hover:bg-white/10 transition-colors ${
-                      currentSource === source ? 'bg-white/20' : ''
-                    }`}
-                  >
-                    {source}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {!isTrailerMode && (
+              <DropdownMenu>
+                <DropdownMenuTrigger className="bg-zinc-900 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-colors border-l border border-white/20">
+                  <Tv className="w-4 h-4" />
+                  <span>{currentSource}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="bg-black/90 backdrop-blur-sm border border-white/20 rounded-xl shadow-lg z-50 min-w-[150px]">
+                  {sources.map((source) => (
+                    <DropdownMenuItem
+                      key={source}
+                      onClick={() => handleSourceChange(source)}
+                      className={`px-4 py-2 text-white hover:bg-white/10 transition-colors ${
+                        currentSource === source ? 'bg-white/20' : ''
+                      }`}
+                    >
+                      {source}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
 
             {/* Close Button */}
             <button
@@ -429,7 +439,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
             />
             
             {/* Ad Blocker Disclaimer Overlay */}
-            {showAdDisclaimer && sourceHasAds(currentSource) && (
+            {!isTrailerMode && showAdDisclaimer && sourceHasAds(currentSource) && (
               <div className="absolute top-2 right-2 z-10">
                 {isAdDisclaimerCollapsed ? (
                   <button
