@@ -2,18 +2,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import config from '../../config.json';
 import { searchSubtitles } from 'wyzie-lib';
-import { fetchTmdb, formatReleaseDate } from '../../utils.jsx';
 import VideoPlayer from '../../components/player/main';
 
-const PrimeBox = () => {
+const PrimeNet = () => {
   const { tmdbid, season, episode } = useParams();
   const [videoUrl, setVideoUrl] = useState('');
-  const [originalVideoUrl, setOriginalVideoUrl] = useState('');
+  const [originalM3U8Url, setOriginalM3U8Url] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [availableQualities, setAvailableQualities] = useState([]);
-  const [selectedQuality, setSelectedQuality] = useState('1080P');
-  const [primeboxData, setPrimeboxData] = useState(null);
   
   // Subtitle states
   const [showCaptionsPopup, setShowCaptionsPopup] = useState(false);
@@ -32,74 +28,18 @@ const PrimeBox = () => {
         setLoading(true);
         setError('');
         
-        // First, fetch TMDB data to get name and year
-        const tmdbData = await fetchTmdb(`/${mediaType}/${tmdbid}`);
-        if (!tmdbData) {
-          throw new Error('Failed to fetch movie/TV show details');
-        }
+        let apiUrl;
+        if (season && episode) { apiUrl = `https://backend.xprime.tv/primenet?id=${tmdbid}&season=${season}&episode=${episode}`; }
+        else { apiUrl = `https://backend.xprime.tv/primenet?id=${tmdbid}`; }
         
-        const name = tmdbData.title || tmdbData.name;
-        const releaseDate = tmdbData.release_date || tmdbData.first_air_date;
-        const year = releaseDate ? formatReleaseDate(releaseDate) : '';
-        
-        if (!name || !year) {
-          throw new Error('Missing required movie/TV show information');
-        }
-        
-        // Build primebox API parameters
-        const params = new URLSearchParams({
-          name: name,
-          year: year,
-          fallback_year: year
-        });
-        
-        // Add season and episode for TV shows
-        if (season && episode) {
-          params.append('season', season);
-          params.append('episode', episode);
-        }
-        
-        // Call primebox API
-        const primeboxUrl = `https://backend.xprime.tv/primebox?${params.toString()}`;
-        const response = await fetch(primeboxUrl);
-        
-        if (!response.ok) {
-          throw new Error(`Primebox API error: ${response.status}`);
-        }
-        
+        const response = await fetch(apiUrl);
+        if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); }
         const data = await response.json();
+        if (!data.url) { throw new Error('No video URL found in response'); }
         
-        if (data.status !== 'ok' || !data.streams) {
-          throw new Error('No streams found for this content');
-        }
+        setOriginalM3U8Url(data.url);
         
-        setPrimeboxData(data);
-        
-        // Set available qualities
-        const qualityNames = data.available_qualities || Object.keys(data.streams);
-        const formattedQualities = qualityNames.map((qualityName, index) => {
-          const heightMatch = qualityName.match(/(\d+)[pP]/);
-          const height = heightMatch ? parseInt(heightMatch[1]) : 0;
-          
-          return { index, quality: qualityName, url: data.streams[qualityName], height: height, width: 0, bitrate: 0 };
-        });
-        
-        // Sort by quality (highest first)
-        formattedQualities.sort((a, b) => b.height - a.height);
-        setAvailableQualities(formattedQualities);
-        
-        const bestQuality = formattedQualities[0];
-        setSelectedQuality(bestQuality);
-        
-        // Get the stream URL for the selected quality
-        const streamUrl = bestQuality.url;
-        if (!streamUrl) {
-          throw new Error('No stream URL found for selected quality');
-        }
-        
-        setOriginalVideoUrl(streamUrl);
-        
-        const proxiedUrl = `${config.proxy}/api/video-proxy?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent('https://pstream.mov')}&cache=true`;
+        const proxiedUrl = `${config.m3u8proxy}/m3u8-proxy?url=${encodeURIComponent(data.url)}&headers=${encodeURIComponent(JSON.stringify({'referer': 'https://xprime.tv/'}))}`;
         setVideoUrl(proxiedUrl);
         
       } catch (err) {
@@ -113,28 +53,7 @@ const PrimeBox = () => {
     if (tmdbid) {
       fetchVideoUrl();
     }
-  }, [tmdbid, season, episode, mediaType]);
-
-  const changeQuality = async (qualityObject) => {
-    if (!primeboxData || !qualityObject || !qualityObject.url) { return; }
-    
-    try {
-      setLoading(true);
-      setSelectedQuality(qualityObject);
-      
-      const streamUrl = qualityObject.url;
-      setOriginalVideoUrl(streamUrl);
-      
-      const proxiedUrl = `${config.proxy}/api/video-proxy?url=${encodeURIComponent(streamUrl)}&referer=${encodeURIComponent('https://pstream.mov')}&cache=true`;
-      setVideoUrl(proxiedUrl);
-      
-    } catch (err) {
-      console.error(err);
-      setError(err.message || 'Failed to change quality');
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [tmdbid, season, episode]);
 
   useEffect(() => {
     const fetchSubtitles = async () => {
@@ -261,7 +180,7 @@ const PrimeBox = () => {
   return (
     <VideoPlayer
       videoUrl={videoUrl}
-      originalVideoUrl={originalVideoUrl}
+      originalM3U8Url={originalM3U8Url}
       onError={setError}
       showCaptionsPopup={showCaptionsPopup}
       setShowCaptionsPopup={setShowCaptionsPopup}
@@ -272,18 +191,14 @@ const PrimeBox = () => {
       selectedSubtitle={selectedSubtitle}
       onSelectSubtitle={selectSubtitle}
       subtitleCues={subtitleCues}
-      // Quality selection props
-      availableQualities={availableQualities}
-      selectedQuality={selectedQuality}
-      onQualityChange={changeQuality}
       // Progress tracking props
       mediaId={tmdbid}
       mediaType={mediaType}
       season={season ? parseInt(season) : 0}
       episode={episode ? parseInt(episode) : 0}
-      sourceIndex={0} // PrimeBox source index
+      sourceIndex={0} // PrimeNet source index
     />
   );
 };
 
-export default PrimeBox;
+export default PrimeNet;
