@@ -58,7 +58,7 @@ const Header = () => {
       >
         <div className="flex items-center flex-row gap-2">
           <Link to="/" className="text-2xl mr-6 hover:text-blue-400 transition-colors font-instrument">
-            quickwatch
+            NepoFlix
           </Link>
           <Link to="/" className={`px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white hover:text-zinc-900 hover:shadow-[0_0_30px_#e7eaee50] ${
               isActive('/') ? 'bg-white/20 text-white' : 'text-gray-200'
