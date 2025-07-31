@@ -9,7 +9,7 @@ import Watchlist from './pages/Watchlist.jsx';
 import Search from './pages/Search.jsx';
 import Ios from './pages/misc/Ios.jsx';
 import PrimeNet from './pages/embeds/primenet.jsx';
-import PrimeBox from './pages/embeds/primebox.jsx';
+import Fox from './pages/embeds/fox.jsx';
 import AnimeHome from './pages/anime/home.jsx';
 import AnimeDetails from './pages/anime/details.jsx';
 import AnimeSearch from './pages/anime/search.jsx';
@@ -32,8 +32,8 @@ export default function App() {
         <Route path="/ios" element={<Ios />} />
         <Route path="/e/primenet/:tmdbid" element={<PrimeNet />} />
         <Route path="/e/primenet/:tmdbid/:season/:episode" element={<PrimeNet />} />
-        <Route path="/e/primebox/:tmdbid" element={<PrimeBox />} />
-        <Route path="/e/primebox/:tmdbid/:season/:episode" element={<PrimeBox />} />
+        <Route path="/e/fox/:tmdbid" element={<Fox />} />
+        <Route path="/e/fox/:tmdbid/:season/:episode" element={<Fox />} />
       </Routes>
       <Toaster 
         position="bottom-center"
