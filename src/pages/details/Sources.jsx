@@ -1,14 +1,14 @@
 export function getSource(source, type, id, season=0, episode=0) {
   switch(source) {
-    case 'Native':
+    case 'Resident':
+      return type === 'movie'
+        ? `/e/fox/${id}`
+        : `/e/fox/${id}/${season}/${episode}`;
+
+    case 'Primenet':
       return type === 'movie'
         ? `/e/primenet/${id}`
         : `/e/primenet/${id}/${season}/${episode}`;
-
-    case 'Resident':
-      return type === 'movie'
-        ? `/e/primebox/${id}`
-        : `/e/primebox/${id}/${season}/${episode}`;
     
     case 'VidLink':
       return type === 'movie'
@@ -25,11 +25,6 @@ export function getSource(source, type, id, season=0, episode=0) {
         ? `https://vidsrc.su/embed/movie/${id}?serverselector=false`
         : `https://vidsrc.su/embed/tv/${id}/${season}/${episode}?serverselector=false`;
     
-    case 'Vidora':
-      return type === 'movie'
-        ? `https://vidora.su/movie/${id}?autoplay=true&colour=2392EE&autonextepisode=true&pausescreen=false`
-        : `https://vidora.su/tv/${id}/${season}/${episode}?autoplay=true&colour=2392EE&autonextepisode=true&pausescreen=false`;
-  
     case 'VidFast':
       return type === 'movie'
         ? `https://vidfast.pro/movie/${id}?autoPlay=true&theme=2392EE&poster=false`
