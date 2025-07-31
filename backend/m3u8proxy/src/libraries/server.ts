@@ -1,5 +1,5 @@
 /**
- * @author Eltik. Credit to CORS proxy by Rob Wu.
+ * @author Eltik. Credit to CORS proxy by Rob Wu .
  * @description Proxies m3u8 files.
  * @license MIT
  */
