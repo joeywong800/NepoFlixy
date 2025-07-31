@@ -186,14 +186,12 @@ const VideoPlayer = ({
 
   // Initialize video when videoUrl changes
   useEffect(() => {
+    setIsVideoLoading(true);
     if (videoUrl) {
-      setIsVideoLoading(true);
       setQualitiesLoading(true);
       initializeVideo(videoUrl, videoRef, hlsRef, onError, setAvailableQualities);
       setQualitiesLoading(false);
       setProgressLoaded(false);
-    } else {
-      setIsVideoLoading(true);
     }
 
     return () => {
