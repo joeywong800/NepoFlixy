@@ -5,6 +5,7 @@ import Home from './pages/browse/Home.jsx';
 import Movies from './pages/browse/Movies.jsx';
 import Tv from './pages/browse/Tv.jsx';
 import Details from './pages/details/Details.jsx';
+import CastDetails from './pages/details/CastDetails.jsx';
 import Watchlist from './pages/Watchlist.jsx';
 import Search from './pages/Search.jsx';
 import Ios from './pages/misc/Ios.jsx';
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/tv" element={<Tv />} />
         <Route path="/movie/:tmdbId" element={<Details />} />
         <Route path="/tv/:tmdbId" element={<Details />} />
+        <Route path="/person/:personId" element={<CastDetails />} />
         <Route path="/anime" element={<AnimeHome />} />
         <Route path="/anime/search" element={<AnimeSearch />} />
         <Route path="/anime/:id" element={<AnimeDetails />} />
