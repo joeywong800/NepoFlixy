@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, Grid3X3, Bookmark, Home, Tv, Film, Cat } from 'lucide-react';
-import { toast } from 'sonner';
 
 const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileHeaderOpacity, setMobileHeaderOpacity] = useState(1);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const [animeWarningShown, setAnimeWarningShown] = useState(false);
   const location = useLocation();
   const currentPath = location.pathname;
 
@@ -34,14 +32,6 @@ const Header = () => {
     return currentPath === path;
   };
 
-  const handleAnimeClick = (e) => {
-    if (!animeWarningShown) {
-      e.preventDefault();
-      toast.warning('The anime section is currently in beta. Things might break. Click again if you still want to enter');
-      setAnimeWarningShown(true);
-    }
-  };
-
   // check if iOS and not PWA
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent || navigator.vendor || (window.opera && opera.toString() === `[object Opera]`));
   const isPWA = window.navigator.standalone;
@@ -58,7 +48,7 @@ const Header = () => {
       >
         <div className="flex items-center flex-row gap-2">
           <Link to="/" className="text-2xl mr-6 hover:text-blue-400 transition-colors font-instrument">
-            NepoFlix
+            quickwatch
           </Link>
           <Link to="/" className={`px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white hover:text-zinc-900 hover:shadow-[0_0_30px_#e7eaee50] ${
               isActive('/') ? 'bg-white/20 text-white' : 'text-gray-200'
@@ -78,13 +68,12 @@ const Header = () => {
           >
             TV Shows
           </Link>
-          <Link to="/anime" onClick={handleAnimeClick} className={`px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white hover:text-zinc-900 hover:shadow-[0_0_30px_#e7eaee50] flex flex-col relative ${
+          <Link to="/anime" className={`px-4 py-2 rounded-lg transition-all duration-200 hover:bg-white hover:text-zinc-900 hover:shadow-[0_0_30px_#e7eaee50] flex flex-col relative ${
               isActive('/anime') ? 'bg-white/20 text-white' : 'text-gray-200'
             }`}
           >
             <span className="relative">
               Anime
-              <span className="absolute -top-2.5 -right-5 bg-blue-500 text-[8px] px-1 pt-[0.05rem] rounded-[0.2rem] rotate-6 text-white font-medium">BETA</span>
             </span>
           </Link>
         </div>
