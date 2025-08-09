@@ -10,10 +10,14 @@ const SettingsManager = ({
   playbackSpeed, 
   onSpeedChange, 
   qualitiesLoading,
-  container 
+  container,
+  volumeBoost = 0,
+  onVolumeBoostChange
 }) => {
-  const speedOptions = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const speedOptions = [0.25, 0.5, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 2];
   const currentSpeedIndex = speedOptions.indexOf(playbackSpeed);
+  
+  const maxVolumeBoost = 300;
 
   const handleKeyDown = (e) => {
     if (e.key === ' ' || e.key === 'Spacebar') {
@@ -22,20 +26,27 @@ const SettingsManager = ({
     }
   };
 
-  const handleSpeedIncrease = () => {
-    if (currentSpeedIndex < speedOptions.length - 1) {
-      onSpeedChange(speedOptions[currentSpeedIndex + 1]);
+  const handleSpeedChange = (e) => {
+    const newIndex = parseInt(e.target.value);
+    if (newIndex < speedOptions.length) {
+      onSpeedChange(speedOptions[newIndex]);
     }
   };
 
-  const handleSpeedDecrease = () => {
-    if (currentSpeedIndex > 0) {
-      onSpeedChange(speedOptions[currentSpeedIndex - 1]);
+  const handleVolumeBoostChange = (e) => {
+    const newBoost = parseInt(e.target.value);
+    if (onVolumeBoostChange) {
+      onVolumeBoostChange(newBoost);
     }
   };
 
   const getSpeedLabel = (speed) => {
     return speed === 1 ? '1x' : `${speed}x`;
+  };
+
+  const getVolumeBoostLabel = (boost) => {
+    if (boost === 0) return 'Off';
+    return `+${boost}%`;
   };
 
   return (
@@ -71,53 +82,49 @@ const SettingsManager = ({
             <h3 className="text-lg font-semibold text-white mb-4">Settings</h3>
 
             <div className="mb-6">
-              <h4 className="text-sm font-medium text-white/80 mb-3">Playback Speed</h4>
-              <div className="flex items-center space-x-3">
-                <button
-                  onClick={handleSpeedDecrease}
-                  onKeyDown={handleKeyDown}
-                  disabled={currentSpeedIndex <= 0}
-                  className={`flex-1 py-2 px-2 rounded-lg border transition-all duration-200 focus:outline-none ${
-                    currentSpeedIndex <= 0
-                      ? 'border-gray-600 text-gray-500 cursor-not-allowed'
-                      : 'border-white/30 text-white hover:bg-white/10 hover:border-white/50 active:bg-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-center">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="15,18 9,12 15,6"/>
-                    </svg>
-                    <span className='ml-1'>Slower</span>
-                  </div>
-                </button>
-
-                <div className="flex-shrink-0 py-1.5 px-4 bg-blue-600/20 border border-blue-500/50 rounded-lg text-center min-w-[40px]">
-                  <span className="text-blue-300 font-medium text-lg">
-                    {getSpeedLabel(playbackSpeed)}
-                  </span>
-                </div>
-
-                <button
-                  onClick={handleSpeedIncrease}
-                  onKeyDown={handleKeyDown}
-                  disabled={currentSpeedIndex >= speedOptions.length - 1}
-                  className={`flex-1 py-2 px-2 rounded-lg border transition-all duration-200 focus:outline-none ${
-                    currentSpeedIndex >= speedOptions.length - 1
-                      ? 'border-gray-600 text-gray-500 cursor-not-allowed'
-                      : 'border-white/30 text-white hover:bg-white/10 hover:border-white/50 active:bg-white/20'
-                  }`}
-                >
-                  <div className="flex items-center justify-center">
-                    <span className='mr-1'>Faster</span>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9,18 15,12 9,6"/>
-                    </svg>
-                  </div>
-                </button>
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Playback Speed: {getSpeedLabel(playbackSpeed)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max={speedOptions.length - 1}
+                value={currentSpeedIndex}
+                onChange={handleSpeedChange}
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, white 0%, white ${(currentSpeedIndex / (speedOptions.length - 1)) * 100}%, rgba(255,255,255,0.2) ${(currentSpeedIndex / (speedOptions.length - 1)) * 100}%, rgba(255,255,255,0.2) 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-white/60 mt-1">
+                <span>¼x</span>
+                <span>1x</span>
+                <span>2x</span>
               </div>
             </div>
 
-            <div className="w-full h-px bg-white/20 mb-6"></div>
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-white/80 mb-2">
+                Boost Volume: {getVolumeBoostLabel(volumeBoost)}
+              </label>
+              <input
+                type="range"
+                min="0"
+                max={maxVolumeBoost}
+                step="25"
+                value={volumeBoost}
+                onChange={handleVolumeBoostChange}
+                className="w-full h-2 bg-white/20 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, white 0%, white ${(volumeBoost / maxVolumeBoost) * 100}%, rgba(255,255,255,0.2) ${(volumeBoost / maxVolumeBoost) * 100}%, rgba(255,255,255,0.2) 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-white/60 mt-1">
+                <span>Off</span>
+                <span>+150%</span>
+                <span>+300%</span>
+              </div>
+            </div>
 
             <div>
               <h4 className="text-sm font-medium text-white/80 mb-3">Quality</h4>
@@ -136,18 +143,14 @@ const SettingsManager = ({
                       key={quality.url || index}
                       onClick={() => onSelectQuality(quality)}
                       onKeyDown={handleKeyDown}
-                      className={`p-3 rounded-lg border transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none ${
+                      className={`py-2 px-3 rounded-md text-sm font-medium transition-all cursor-pointer ${
                         selectedQuality?.url === quality.url
-                          ? 'bg-blue-600/30 border-blue-500/70 text-blue-300'
-                          : 'bg-gray-800/50 border-white/20 text-white/80 hover:bg-gray-700/50 hover:border-white/40'
+                          ? 'bg-white text-black'
+                          : 'bg-white/10 text-white/80 hover:bg-white/20'
                       }`}
                       style={{ animationDelay: `${index * 50}ms` }}
                     >
-                      <div className="flex flex-col items-center space-y-1">
-                        <span className="text-xs font-medium">
-                          {quality.quality || `${quality.height}p` || 'Unknown'}
-                        </span>
-                      </div>
+                      {quality.quality || `${quality.height}p` || 'Unknown'}
                     </button>
                   ))}
                 </div>
