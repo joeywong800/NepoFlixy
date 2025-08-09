@@ -22,7 +22,7 @@ export async function fetchAnimeData(category = 'top-airing', page = 1) {
       }
     }
     
-    const resp = await fetch(`${config.proxy}/api/proxy`, {
+    const resp = await fetch(config.proxy, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -169,7 +169,7 @@ export async function fetchAnimeInfo(id) {
       }
     }
     
-    const response = await fetch(`${config.proxy}/api/proxy`, {
+    const response = await fetch(config.proxy, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -451,7 +451,7 @@ export async function fetchEpisodesList(id, v1_base_url = "hianime.nz") {
       "Referer": `https://${v1_base_url}/watch/${id}`
     };
 
-    const response = await fetch(`${config.proxy}/api/proxy`, {
+    const response = await fetch(config.proxy, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
