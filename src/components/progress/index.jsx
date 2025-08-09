@@ -4,7 +4,9 @@ import {
   setupVidoraTracking,
   setupVidFastTracking,
   setupVideasyTracking,
-  setupVidsrcXYZTracking
+  setupVidsrcXYZTracking,
+  setupFoxTracking,
+  setupPrimeNetTracking
 } from './sourceTrackers.jsx';
 
 export function initializeSourceTracking(playerIframe, source, mediaId, mediaType, season, episode, sourceIndex) {
@@ -14,6 +16,8 @@ export function initializeSourceTracking(playerIframe, source, mediaId, mediaTyp
     'Vidora': setupVidoraTracking,
     'VidFast': setupVidFastTracking,
     'Videasy': setupVideasyTracking,
+    'fox': setupFoxTracking,
+    'primenet': setupPrimeNetTracking,
   };
   
   const trackerSetup = sourceTrackers[source];
