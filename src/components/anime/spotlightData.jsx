@@ -20,7 +20,7 @@ export async function extractSpotlights() {
       }
     }
     
-    const resp = fetch(`${config.proxy}/api/proxy`, {
+    const resp = fetch(config.proxy, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
