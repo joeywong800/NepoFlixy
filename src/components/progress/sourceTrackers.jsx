@@ -320,3 +320,11 @@ export function setupVideasyTracking(playerIframe, mediaId, mediaType, season, e
     window.removeEventListener('message', messageHandler);
   };
 }
+
+export function setupFoxTracking(playerIframe, mediaId, mediaType, season, episode, sourceIndex) {
+  return () => {};
+}
+
+export function setupPrimeNetTracking(playerIframe, mediaId, mediaType, season, episode, sourceIndex) {
+return () => {};
+}
