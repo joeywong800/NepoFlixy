@@ -7,9 +7,8 @@ import cloudscraper
 import re
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173", "http://localhost:5174", "https://quickwatch.co", "http://192.168.1.8:5173"]}})
 
-# Configure requests session with retry strategy and connection pooling
 session = requests.Session()
 retry_strategy = Retry(
     total=3,
@@ -21,7 +20,7 @@ adapter = HTTPAdapter(max_retries=retry_strategy, pool_connections=10, pool_maxs
 session.mount("http://", adapter)
 session.mount("https://", adapter)
 
-@app.route('/api/proxy', methods=['POST'])
+@app.route('/', methods=['POST'])
 def proxy():
     try:
         data = request.get_json()
