@@ -34,8 +34,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
     'Resident',
     'Videasy',
     'VidLink',
-     'VidFast',
-     'Primenet',
+    'VidFast',
     'VidsrcXYZ',
     'VidsrcSU',
   ];
@@ -307,7 +306,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
           <div className="flex items-center gap-2">
             {!isTrailerMode && (
               <DropdownMenu>
-                <DropdownMenuTrigger className="bg-zinc-900 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-800 transition-colors">
+                <DropdownMenuTrigger className="bg-zinc-900 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-zinc-800 transition-colors cursor-pointer">
                   <Tv className="w-4 h-4" />
                   <span className="text-sm">{currentSource}</span>
                   <ChevronDown className="h-3 w-3" />
@@ -326,7 +325,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
               </DropdownMenu>
             )}
 
-            <button onClick={onClose} className="bg-zinc-900 text-white p-2 rounded-lg hover:bg-zinc-800 transition-colors">
+            <button onClick={onClose} className="bg-zinc-900 text-white p-2 rounded-lg hover:bg-zinc-800 transition-colors cursor-pointer">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -392,7 +391,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
             {/* Source Switcher */}
             {!isTrailerMode && (
               <DropdownMenu>
-                <DropdownMenuTrigger className="bg-zinc-900 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-colors border-l border border-white/20">
+                <DropdownMenuTrigger className="bg-zinc-900 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-colors border-l border border-white/20 cursor-pointer">
                   <Tv className="w-4 h-4" />
                   <span>{currentSource}</span>
                   <ChevronDown className="h-4 w-4" />
@@ -416,7 +415,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
             {/* Close Button */}
             <button
               onClick={onClose}
-              className="bg-zinc-900 text-white p-2.5 rounded-full hover:bg-zinc-800 transition-colors border-l border border-white/20"
+              className="bg-zinc-900 text-white p-2.5 rounded-full hover:bg-zinc-800 transition-colors border-l border border-white/20 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
