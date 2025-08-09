@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTmdb, getTmdbImage, formatReleaseDate, getContentRating, isInWatchlist, toggleWatchlist } from '../../utils.jsx';
-import { Play, ThumbsUp, Plus, Info } from 'lucide-react';
+import { Play, ThumbsUp, Plus, Info, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import CarouselItem from '../../components/carouselItem.jsx';
 import Header from '../../components/Header.jsx';
+import Footer from '../../components/Footer.jsx';
+import QuickSearch from '../../components/QuickSearch.jsx';
 import { SpotlightSkeleton, CategorySkeleton } from '../../components/Skeletons.jsx';
 import { getAllContinueWatching } from '../../components/progress/index.jsx';
 import config from '../../config.json';
@@ -46,7 +48,7 @@ const categories = [
 ];
 
 
-const SpotlightSection = ({ item, isLoading }) => {
+const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
   const [inWatchlist, setInWatchlist] = useState(false);
   const navigate = useNavigate();
   
@@ -77,6 +79,21 @@ const SpotlightSection = ({ item, isLoading }) => {
       <div className="absolute inset-0 bg-gradient-to-r from-[#090a0a]/70 via-black/20 to-transparent"></div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#090a0a]/80 via-black/40 md:via-black/20 to-transparent"></div>
       <div className="absolute inset-0 bg-gradient-to-b from-[#090a0a]/80 md:from-[#090a0a]/60 via-[#090a0a]/10 to-transparent"></div>
+
+      {/* NepoFlixsearch Bubble */}
+      <div className="absolute top-18 left-1/2 transform -translate-x-1/2 z-20 animate-fade-in-delayed backdrop-blur-sm">
+        <div 
+          className="bg-white/10 border border-white/20 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg cursor-pointer hover:bg-white/15 transition-all duration-200"
+          onClick={onQuickSearchOpen}
+        >
+          <div className="flex items-center gap-1">
+            <Search className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-white text-sm font-medium">
+            Press <kbd className="bg-white/20 px-1.5 py-0.5 rounded text-xs">Ctrl+G</kbd> to quickly search movies/tv from anywhere
+          </span>
+        </div>
+      </div>
 
       {/* Content container */}
       <div className="relative z-10 p-4 md:p-8 pb-0 w-full md:pl-8 md:pr-0 md:text-left text-center">
@@ -228,6 +245,15 @@ const Home = () => {
   const [error, setError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [spotlightLoading, setSpotlightLoading] = useState(true);
+  const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
+
+  const handleQuickSearchOpen = () => {
+    setIsQuickSearchOpen(true);
+  };
+
+  const handleQuickSearchClose = () => {
+    setIsQuickSearchOpen(false);
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -299,7 +325,11 @@ const Home = () => {
     <div className="min-h-screen bg-[#090a0a] pb-12 md:pb-0">
       <Header />
       
-      <SpotlightSection item={spotlightItem} isLoading={spotlightLoading} />
+      <SpotlightSection 
+        item={spotlightItem} 
+        isLoading={spotlightLoading} 
+        onQuickSearchOpen={handleQuickSearchOpen}
+      />
       
       <div className="px-8 py-8 space-y-8">
         {continueWatchingItems.length > 0 && (
@@ -327,6 +357,14 @@ const Home = () => {
           );
         })}
       </div>
+      
+      <Footer />
+      
+      {/* NepoFlix Component */}
+      <QuickSearch 
+        isOpen={isQuickSearchOpen}
+        onOpenChange={setIsQuickSearchOpen}
+      />
     </div>
   );
 };
