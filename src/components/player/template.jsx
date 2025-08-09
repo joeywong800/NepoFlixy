@@ -1,7 +1,8 @@
 import React from 'react';
-import { PlaySolid, PauseSolid, SoundOffSolid, SoundLowSolid, SoundHighSolid, Expand, Collapse } from 'iconoir-react';
+import { PlaySolid, PauseSolid, SoundOffSolid, SoundLowSolid, SoundHighSolid, Expand, Collapse, ServerSolid } from 'iconoir-react';
 import SubtitleManager from './subtitles';
 import SettingsManager from './settings';
+import SourcesManager from './sources';
 import { formatTime } from './helpers';
 import { isMobileDevice } from '../../utils';
 
@@ -63,6 +64,8 @@ const PlayerTemplate = ({
   availableSubtitles,
   selectedSubtitle,
   currentSubtitleText,
+  subtitleSettings,
+  onSubtitleSettingsChange,
   
   // Settings state
   showSettingsPopup,
@@ -71,6 +74,14 @@ const PlayerTemplate = ({
   availableQualities,
   selectedQuality,
   qualitiesLoading,
+  volumeBoost,
+  onVolumeBoostChange,
+  
+  // Source management state
+  showSourcesPopup,
+  setShowSourcesPopup,
+  usedSource,
+  onSourceChange,
   
   // Event handlers
   onMouseMove,
@@ -114,10 +125,20 @@ const PlayerTemplate = ({
       )}
       
       {subtitlesEnabled && currentSubtitleText && !isMobileDevice() && (
-        <div className="absolute bottom-32 left-1/2 transform -translate-x-1/2 pointer-events-none">
+        <div className={`absolute bottom-32 pointer-events-none ${
+          subtitleSettings.position === 'left' ? 'left-8' : 
+          subtitleSettings.position === 'right' ? 'right-8' : 
+          'left-1/2 transform -translate-x-1/2'
+        }`}>
           <span 
-            className="inline-block px-4 py-2 bg-black/80 text-white text-lg font-medium rounded-md shadow-lg max-w-4xl text-center leading-relaxed"
-            style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,0.1)' }}
+            className="inline-block px-4 py-2 bg-black/80 text-white font-medium rounded-md shadow-lg max-w-4xl leading-relaxed"
+            style={{ 
+              fontSize: `${subtitleSettings.fontSize}px`,
+              textAlign: subtitleSettings.position === 'center' ? 'center' : subtitleSettings.position,
+              textShadow: '2px 2px 4px rgba(0,0,0,0.8)', 
+              backdropFilter: 'blur(4px)', 
+              border: '1px solid rgba(255,255,255,0.1)' 
+            }}
             dangerouslySetInnerHTML={{ __html: currentSubtitleText.replace(/\n/g, '<br/>') }}
           />
         </div>
@@ -192,8 +213,22 @@ const PlayerTemplate = ({
               availableSubtitles={availableSubtitles}
               selectedSubtitle={selectedSubtitle}
               selectSubtitle={onSelectSubtitle}
+              subtitleSettings={subtitleSettings}
+              onSubtitleSettingsChange={onSubtitleSettingsChange}
               container={isFullscreen ? playerRef.current : undefined}
             />
+
+            {usedSource && (
+              <>
+                <SourcesManager
+                  showSourcesPopup={showSourcesPopup}
+                  setShowSourcesPopup={setShowSourcesPopup}
+                  currentSource={usedSource}
+                  onSourceChange={onSourceChange}
+                  container={isFullscreen ? playerRef.current : undefined}
+                />
+              </>
+            )}
 
             <SettingsManager
               showSettingsPopup={showSettingsPopup}
@@ -204,6 +239,8 @@ const PlayerTemplate = ({
               playbackSpeed={playbackSpeed}
               onSpeedChange={onSpeedChange}
               qualitiesLoading={qualitiesLoading}
+              volumeBoost={volumeBoost}
+              onVolumeBoostChange={onVolumeBoostChange}
               container={isFullscreen ? playerRef.current : undefined}
             />
 
