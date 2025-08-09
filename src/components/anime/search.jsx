@@ -26,7 +26,7 @@ export async function searchAnime(query, page = 1) {
     }
     
     const encodedQuery = encodeURIComponent(query.trim());
-    const resp = await fetch(`${config.proxy}/api/proxy`, {
+    const resp = await fetch(config.proxy, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
