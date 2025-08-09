@@ -10,6 +10,20 @@ export const formatTime = (time) => {
   }
 };
 
+export const fetchM3U8Data = async (proxiedUrl) => {
+  try {
+    const response = await fetch(proxiedUrl, {
+      method: 'GET',
+      headers: { 'Accept': 'application/vnd.apple.mpegurl, application/x-mpegURL, text/plain' }
+    });
+    
+    if (!response.ok) { throw new Error(`Failed fetching M3U8 data: ${response.status} ${response.statusText}`); }
+    
+    const m3u8Data = await response.text();
+    return m3u8Data;
+  } catch (error) { throw error }
+};
+
 export const initializeVideo = async (videoUrl, videoRef, hlsRef, setError, setAvailableQualities) => {
   if (!videoUrl || !videoRef.current) return;
 
@@ -78,7 +92,8 @@ export const initializeVideo = async (videoUrl, videoRef, hlsRef, setError, setA
               width: level.width,
               bitrate: level.bitrate,
               quality: level.height ? `${level.height}p` : 'Unknown',
-              url: level.url
+              name: level.height ? `${level.height}p` : 'Unknown',
+              url: level.url || videoUrl
             }));
             
             qualities.sort((a, b) => b.height - a.height);
@@ -87,12 +102,54 @@ export const initializeVideo = async (videoUrl, videoRef, hlsRef, setError, setA
           }
         });
 
-        hls.loadSource(videoUrl);
-        hls.attachMedia(videoRef.current);
+        if (videoUrl.includes('m3u8-proxy')) {
+          try {
+            const m3u8Data = await fetchM3U8Data(videoUrl);
+            
+            const blob = new Blob([m3u8Data], { type: 'application/vnd.apple.mpegurl' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            hls.loadSource(blobUrl);
+            hls.attachMedia(videoRef.current);
+            
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl);
+            }, 10000);
+            
+          } catch (error) {
+            hls.loadSource(videoUrl);
+            hls.attachMedia(videoRef.current);
+          }
+        } else {
+          hls.loadSource(videoUrl);
+          hls.attachMedia(videoRef.current);
+        }
         
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         // Native HLS support (Safari)
-        videoRef.current.src = videoUrl;
+        if (videoUrl.includes('m3u8-proxy')) {
+          try {
+            const m3u8Data = await fetchM3U8Data(videoUrl);
+            const blob = new Blob([m3u8Data], { type: 'application/vnd.apple.mpegurl' });
+            const blobUrl = URL.createObjectURL(blob);
+            
+            videoRef.current.src = blobUrl;
+            
+            const handleLoadedData = () => {
+              setTimeout(() => {
+                URL.revokeObjectURL(blobUrl);
+              }, 1000);
+              videoRef.current.removeEventListener('loadeddata', handleLoadedData);
+            };
+            videoRef.current.addEventListener('loadeddata', handleLoadedData);
+            
+          } catch (error) {
+            videoRef.current.src = videoUrl;
+          }
+        } else {
+          videoRef.current.src = videoUrl;
+        }
+        
         // For native HLS, we can't extract quality levels easily
         if (setAvailableQualities) {
           setAvailableQualities([]);
@@ -255,56 +312,158 @@ export const changePlaybackSpeed = (speed, videoRef) => {
   }
 };
 
-export const changeQuality = (quality, hlsRef, videoRef, currentTime) => {
-  if (!hlsRef.current || !quality) return;
+export const changeQuality = async (quality, hlsRef, videoRef, currentTime) => {
+  if (!quality || !videoRef.current) return;
 
-  const hls = hlsRef.current;
+  const preserveTime = currentTime || 0;
+  const preservePlayState = videoRef.current && !videoRef.current.paused;
   
-  hls.currentLevel = quality.index;
-  
-  if (videoRef.current && currentTime) {
-    const preserveTime = currentTime;
-    const preservePlayState = !videoRef.current.paused;
+  // If we have HLS and a valid quality index, try to change level
+  if (hlsRef.current && quality.index !== -1 && quality.index !== undefined) {
+    const hls = hlsRef.current;
     
+    hls.currentLevel = quality.index;
+    
+    // Preserve playback position and state
+    if (preserveTime > 0) {
+      const handleLoadedData = () => {
+        videoRef.current.currentTime = preserveTime;
+        if (preservePlayState) {
+          videoRef.current.play().catch(console.error);
+        }
+        videoRef.current.removeEventListener('loadeddata', handleLoadedData);
+      };
+      
+      videoRef.current.addEventListener('loadeddata', handleLoadedData);
+    }
+  } 
+  else if (quality.url && quality.url !== videoRef.current.src) {
+    // For different quality URLs, we need to reload the source
     const handleLoadedData = () => {
-      videoRef.current.currentTime = preserveTime;
+      if (preserveTime > 0) {
+        videoRef.current.currentTime = preserveTime;
+      }
       if (preservePlayState) {
-        videoRef.current.play();
+        videoRef.current.play().catch(console.error);
       }
       videoRef.current.removeEventListener('loadeddata', handleLoadedData);
     };
     
     videoRef.current.addEventListener('loadeddata', handleLoadedData);
+    
+    // If we have HLS, load the new source
+    if (hlsRef.current) {
+      if (quality.url.includes('m3u8-proxy')) {
+        try {
+          const m3u8Data = await fetchM3U8Data(quality.url);
+          
+          const blob = new Blob([m3u8Data], { type: 'application/vnd.apple.mpegurl' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          hlsRef.current.loadSource(blobUrl);
+          
+          setTimeout(() => {
+            URL.revokeObjectURL(blobUrl);
+          }, 10000);
+          
+        } catch (error) {
+          hlsRef.current.loadSource(quality.url);
+        }
+      } else {
+        hlsRef.current.loadSource(quality.url);
+      }
+    } else {
+      // native HLS support
+      if (quality.url.includes('m3u8-proxy')) {
+        try {
+          const m3u8Data = await fetchM3U8Data(quality.url);
+          const blob = new Blob([m3u8Data], { type: 'application/vnd.apple.mpegurl' });
+          const blobUrl = URL.createObjectURL(blob);
+          
+          videoRef.current.src = blobUrl;
+          
+          const handleLoadedDataCleanup = () => {
+            setTimeout(() => {
+              URL.revokeObjectURL(blobUrl);
+            }, 1000);
+            videoRef.current.removeEventListener('loadeddata', handleLoadedDataCleanup);
+          };
+          videoRef.current.addEventListener('loadeddata', handleLoadedDataCleanup);
+          
+        } catch (error) {
+          videoRef.current.src = quality.url;
+        }
+      } else {
+        videoRef.current.src = quality.url;
+      }
+    }
   }
 };
 
-export const extractQualitiesFromM3U8 = async (m3u8Url) => {
+export const extractQualitiesFromM3U8 = async (m3u8Url, createProxyUrl, headers = {}) => {
   try {
+    console.log('Fetching M3U8 from:', m3u8Url);
     const response = await fetch(m3u8Url);
     const m3u8Text = await response.text();
+    console.log('M3U8 content preview:', m3u8Text.substring(0, 500));
     
     const qualities = [];
     const lines = m3u8Text.split('\n');
     
     for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+      const line = lines[i].trim();
+      
       if (line.startsWith('#EXT-X-STREAM-INF:')) {
         const resolutionMatch = line.match(/RESOLUTION=(\d+)x(\d+)/);
         const bandwidthMatch = line.match(/BANDWIDTH=(\d+)/);
+        const frameRateMatch = line.match(/FRAME-RATE=([\d.]+)/);
         
-        if (resolutionMatch && lines[i + 1]) {
+        // Look for the next non-empty, non-comment line
+        let url = null;
+        for (let j = i + 1; j < lines.length; j++) {
+          const nextLine = lines[j].trim();
+          if (nextLine && !nextLine.startsWith('#')) {
+            url = nextLine;
+            break;
+          }
+        }
+        
+        if (resolutionMatch && url) {
           const width = parseInt(resolutionMatch[1]);
           const height = parseInt(resolutionMatch[2]);
           const bandwidth = bandwidthMatch ? parseInt(bandwidthMatch[1]) : 0;
-          const url = lines[i + 1].trim();
+          const frameRate = frameRateMatch ? parseFloat(frameRateMatch[1]) : null;
           
-          qualities.push({ index: qualities.length, width, height, bitrate: bandwidth, quality: `${height}p`, url: url.startsWith('http') ? url : new URL(url, m3u8Url).href });
+          let finalUrl = url;
+          
+          if (!url.startsWith('http')) {
+            const baseUrl = m3u8Url.split('/').slice(0, -1).join('/');
+            const fullUrl = `${baseUrl}/${url}`;
+            finalUrl = createProxyUrl ? createProxyUrl(fullUrl, headers) : fullUrl;
+          }
+          else if (createProxyUrl) {
+            finalUrl = createProxyUrl(url, headers);
+          }
+          
+          qualities.push({ 
+            index: qualities.length, 
+            width, 
+            height, 
+            bitrate: bandwidth, 
+            frameRate,
+            quality: `${height}p`, 
+            name: `${height}p`,
+            url: finalUrl 
+          });
+          
+          console.log(`Found quality: ${height}p (${width}x${height}) - ${finalUrl}`);
         }
       }
     }
     
     qualities.sort((a, b) => b.height - a.height);
     
+    console.log('Final extracted qualities:', qualities);
     return qualities;
   } catch (error) {
     console.error('Error extracting qualities from M3U8:', error);
