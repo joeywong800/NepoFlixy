@@ -5,6 +5,7 @@ import { Play, ThumbsUp, Plus, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import CarouselItem from '../../components/carouselItem.jsx';
 import Header from '../../components/Header.jsx';
+import Footer from '../../components/Footer.jsx';
 import { SpotlightSkeleton, CategorySkeleton } from '../../components/Skeletons.jsx';
 import config from '../../config.json';
 
@@ -303,6 +304,8 @@ const Tv = () => {
           );
         })}
       </div>
+      
+      <Footer />
     </div>
   );
 };
