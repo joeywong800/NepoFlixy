@@ -4,11 +4,6 @@ export function getSource(source, type, id, season=0, episode=0) {
       return type === 'movie'
         ? `/e/fox/${id}`
         : `/e/fox/${id}/${season}/${episode}`;
-
-    case 'Primenet':
-      return type === 'movie'
-        ? `/e/primenet/${id}`
-        : `/e/primenet/${id}/${season}/${episode}`;
     
     case 'VidLink':
       return type === 'movie'
