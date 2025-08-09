@@ -59,13 +59,28 @@ export const MediaCardSkeleton = () => {
   );
 };
 
-export const CategorySkeleton = ({ title }) => {
+export const CategorySkeleton = ({ title, episodeCount = 0 }) => {
+  const getSkeletonClass = () => {
+    if (title !== 'Episodes') return 'skeleton-shimmer';
+    
+    if (episodeCount > 100) return 'skeleton-shimmer-fast';
+    if (episodeCount > 50) return 'skeleton-shimmer-medium';
+    if (episodeCount > 25) return 'skeleton-shimmer-slow';
+    return 'skeleton-shimmer';
+  };
+
+  const skeletonClass = getSkeletonClass();
+
   return (
     <div className="mb-8 animate-fade-in">
       <h2 className="text-2xl text-white mb-1">{title}</h2>
       <div className="flex space-x-4 overflow-x-auto scrollbar-hide py-4 pl-4 -ml-4">
         {[...Array(4)].map((_, index) => (
-          <MediaCardSkeleton key={index} />
+          <div key={index} className="flex-shrink-0 w-full animate-fade-in">
+            <div className={`skeleton-base ${skeletonClass} w-full aspect-video rounded-lg mb-3`}></div>
+            <div className={`skeleton-base ${skeletonClass} w-3/4 h-4 mb-2`}></div>
+            <div className={`skeleton-base ${skeletonClass} w-1/2 h-3`}></div>
+          </div>
         ))}
       </div>
     </div>
