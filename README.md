@@ -1,15 +1,20 @@
 <div align="center">
 
-![NepoFlix](logo.png)
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="https://github.com/Sandipeyy/NepoFlix">
+    <img src="public/logo.png" alt="Logo" width="100" height="100">
+  </a>
 
-# 🎬 **NepoFlix**
+# **NepoFlix**
 **✨ Click, watch, enjoy — your movies & TV shows, anytime. ✨**
 
 <p>
   <a href="https://github.com/Sandipeyy/NepoFlix/stargazers">
     <img src="https://img.shields.io/github/stars/Sandipeyy/NepoFlix?color=%23A855F7&logo=github&style=for-the-badge" alt="Stars">
   </a>
-  <img src="https://img.shields.io/badge/Status-Inactive-lightgrey?style=for-the-badge" alt="Status">
+  <img src="https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge" alt="Status">
 </p>
 
 <p align="center">
