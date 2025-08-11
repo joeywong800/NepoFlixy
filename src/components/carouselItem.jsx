@@ -68,7 +68,7 @@ const CarouselItem = ({ item, variant = 'default', episodeNumber, usePoster = fa
     const showOverlay = !hasEnglishBackdrop(detailedItem);
     
     return (
-      <a href={linkUrl} className="block transition-all duration-300 hover:scale-105">
+      <div className="block transition-all duration-300 hover:scale-105">
         {shouldShowImage ? (
           <div className={`relative rounded-lg overflow-hidden bg-cover bg-center shadow-lg ${usePoster ? 'aspect-[2/3] w-40 md:w-auto' : 'aspect-video'}`}
                style={{ backgroundImage: `url(${getTmdbImage(imagePath, 'w500')})` }}>
@@ -111,7 +111,7 @@ const CarouselItem = ({ item, variant = 'default', episodeNumber, usePoster = fa
           <h3 className="text-white text-lg font-medium mb-2 line-clamp-2">{title}</h3>
           <p className="text-white text-sm line-clamp-3 leading-relaxed">{item.overview || detailedItem.overview}</p>
         </div>
-      </a>
+      </div>
     );
   }
   
