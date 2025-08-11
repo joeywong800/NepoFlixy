@@ -76,9 +76,12 @@ const SpotlightSection = ({ item, mediaType, isLoading, onWatchClick, onDownload
           <div className="flex items-center gap-2 justify-center">
             <button 
               onClick={onDownloadClick}
-              className="bg-white/15 text-white p-2.5 rounded-full hover:bg-white/25 transition-all cursor-pointer"
+              className="bg-white/15 text-white p-2.5 md:px-4 md:py-2.5 rounded-full hover:bg-white/25 transition-all cursor-pointer flex items-center gap-2"
             >
               {showDownloads ? <Info className="w-6 h-6" /> : <Download className="w-6 h-6" />}
+              <span className="hidden md:inline font-normal">
+                {showDownloads ? 'Info' : 'Download'}
+              </span>
             </button>
             <button 
               onClick={() => onWatchClick({ season: 1, episode: 1, name: mediaType === 'tv' ? firstEpisodeName : (item.title || item.name || '') })}
