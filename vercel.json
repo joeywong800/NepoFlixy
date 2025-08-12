@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/proxy", "destination": "https://a.quickwatch.co" },
+    { "source": "/m3u8proxy/:path*", "destination": "https://p.quickwatch.co/:path*" },
+    { "source": "/(.*)", "destination": "/" }
+  ]
+}
+  

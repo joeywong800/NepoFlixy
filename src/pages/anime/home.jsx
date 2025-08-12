@@ -45,7 +45,7 @@ export default function AnimeHome() {
       }
     };
   }, [spotlights]);
-
+//
   const loadInitialData = async () => {
     try {
       // Load spotlight and trending data first (most important)
