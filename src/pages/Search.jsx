@@ -1,3 +1,5 @@
+// src/pages/Search.jsx
+
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { fetchTmdb } from '../utils.jsx';
@@ -6,24 +8,47 @@ import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { SearchSkeleton } from '../components/Skeletons.jsx';
 import { Search as SearchIcon } from 'lucide-react';
+import { useSearchStore } from '../store/searchStore.js';
+
+const DEBOUNCE_MS = 500;
+const STALE_MS = 10 * 60 * 1000; // 10 minutes cache per query
 
 const Search = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState([]);
+
+  // ---- Zustand store
+  const {
+    searchQuery,
+    hasSearched,
+    resultsByQuery,
+    setQuery,
+    setHasSearched,
+    saveResults,
+  } = useSearchStore();
+
+  // ---- Local UI flags
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [hasSearched, setHasSearched] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
   const inputRef = useRef(null);
   const debounceRef = useRef(null);
 
+  // Restore from URL or store on mount
   useEffect(() => {
-    const queryFromUrl = searchParams.get('query');
+    const queryFromUrl = searchParams.get('query') || '';
+
+    // Prefer URL if present (shareable links), else fall back to store
     if (queryFromUrl) {
-      setSearchQuery(queryFromUrl);
-      performSearch(queryFromUrl);
+      if (queryFromUrl !== searchQuery) {
+        setQuery(queryFromUrl);
+      }
+      // Attempt to use cache for this query; if stale/missing, fetch
+      loadFromCacheOrFetch(queryFromUrl);
+    } else if (searchQuery) {
+      // No URL param but we have a store query -> reflect it in URL
+      setSearchParams({ query: searchQuery });
+      loadFromCacheOrFetch(searchQuery);
     }
 
     if (inputRef.current) inputRef.current.focus();
@@ -33,10 +58,27 @@ const Search = () => {
     window.addEventListener('resize', checkMobile);
 
     return () => window.removeEventListener('resize', checkMobile);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const getCached = (query) => {
+    const entry = resultsByQuery?.[query];
+    if (!entry) return null;
+    const isFresh = Date.now() - (entry.fetchedAt || 0) < STALE_MS;
+    return isFresh ? entry.results : null;
+    // If you want "stale-while-revalidate", you could return results even if stale
+  };
 
   const performSearch = async (query) => {
     if (!query.trim()) return;
+
+    // Serve from cache if available and fresh
+    const cached = getCached(query);
+    if (cached) {
+      setHasSearched(true);
+      // no loading spinner when instant cache hit
+      return;
+    }
 
     try {
       setIsLoading(true);
@@ -46,14 +88,14 @@ const Search = () => {
       const searchRoute = `/search/multi?query=${encodeURIComponent(query)}&language=en-US&page=1`;
       const data = await fetchTmdb(searchRoute);
 
-      const filteredResults = data.results.filter(
+      const filteredResults = (data.results || []).filter(
         (item) =>
           (item.media_type === 'movie' || item.media_type === 'tv') &&
           item.vote_average > 0 &&
           item.vote_count >= 3
       );
 
-      setSearchResults(filteredResults);
+      saveResults(query, filteredResults);
     } catch (err) {
       console.error('Error searching:', err);
       setError(err.message);
@@ -62,24 +104,36 @@ const Search = () => {
     }
   };
 
-  // Auto-search when typing (debounced)
+  // Try to use cache first; if absent, fetch
+  const loadFromCacheOrFetch = async (query) => {
+    const cached = getCached(query);
+    if (cached) {
+      setHasSearched(true);
+      // No network needed
+    } else {
+      await performSearch(query);
+    }
+  };
+
+  // Auto-search when typing (debounced) with caching + URL syncing
   const handleInputChange = (e) => {
     const value = e.target.value;
-    setSearchQuery(value);
+    setQuery(value);
 
     clearTimeout(debounceRef.current);
-
     debounceRef.current = setTimeout(() => {
       if (value.trim()) {
         setSearchParams({ query: value });
-        performSearch(value);
+        loadFromCacheOrFetch(value);
       } else {
-        setSearchResults([]);
-        setHasSearched(false);
         setSearchParams({});
+        setHasSearched(false);
+        // No need to clear cached queries; just stop showing results
       }
-    }, 500); // 500ms delay
+    }, DEBOUNCE_MS);
   };
+
+  const effectiveResults = searchQuery ? resultsByQuery?.[searchQuery]?.results || [] : [];
 
   if (error) {
     return (
@@ -113,7 +167,7 @@ const Search = () => {
 
         {isLoading ? (
           <SearchSkeleton />
-        ) : hasSearched && searchResults.length === 0 ? (
+        ) : hasSearched && effectiveResults.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <div className="text-white text-xl mb-4">No results found</div>
             <p className="text-gray-400 text-center max-w-md">
@@ -124,10 +178,10 @@ const Search = () => {
           <>
             <h2 className="text-2xl text-white mb-5">Search Results</h2>
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {searchResults
+              {effectiveResults
                 .filter((item) => item.backdrop_path || item.poster_path)
                 .map((item) => (
-                  <CarouselItem key={item.id} item={item} usePoster={isMobile} />
+                  <CarouselItem key={`${item.media_type}-${item.id}`} item={item} usePoster={isMobile} />
                 ))}
             </div>
           </>

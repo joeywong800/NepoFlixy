@@ -1,79 +1,111 @@
-import React, { useState, useEffect } from 'react';
+// src/pages/Watchlist.jsx
+import React, { useEffect } from 'react';
 import { fetchTmdb, getWatchlist, removeFromWatchlist } from '../utils.jsx';
 import CarouselItem from '../components/carouselItem.jsx';
 import Header from '../components/Header.jsx';
 import Footer from '../components/Footer.jsx';
 import { SpotlightSkeleton } from '../components/Skeletons.jsx';
 import { X } from 'lucide-react';
+import { useWatchlistStore } from '../store/watchlistStore.js';
+
+const makeSignature = (list) =>
+  JSON.stringify(
+    (list || []).map((x) => ({ id: String(x.id), mediaType: x.mediaType })).sort((a, b) => {
+      // keep stable signature regardless of order
+      if (a.mediaType === b.mediaType) return a.id.localeCompare(b.id);
+      return a.mediaType.localeCompare(b.mediaType);
+    })
+  );
 
 const Watchlist = () => {
-  const [watchlistItems, setWatchlistItems] = useState([]);
-  const [detailedItems, setDetailedItems] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const {
+    watchlistItems,
+    detailedItems,
+    isLoading,
+    error,
+    watchlistSignature,
+    setWatchlistItems,
+    setDetailedItems,
+    setLoading,
+    setError,
+    setLastLoadedAt,
+    setWatchlistSignature,
+  } = useWatchlistStore();
 
+  // Load/refresh watchlist + details (only when list actually changes)
   useEffect(() => {
     const loadWatchlist = async () => {
       try {
-        setIsLoading(true);
-        const watchlist = getWatchlist();
-        setWatchlistItems(watchlist);
+        setLoading({ isLoading: true, error: null });
 
-        // Fetch details for each watchlist item
-        if (watchlist.length > 0) {
-          const detailedPromises = watchlist.map(async (item) => {
-            try {
-              const detailRoute = `/${item.mediaType}/${item.id}?language=en-US&append_to_response=images,content_ratings${
-                item.mediaType === 'movie' ? ',release_dates' : ''
-              }`;
-              const detailedItem = await fetchTmdb(detailRoute);
-              return { ...detailedItem, media_type: item.mediaType };
-            } catch (err) {
-              console.error(`Error fetching details for ${item.title}:`, err);
-              // Fallback to basic data if details fail
-              return {
-                id: item.id,
-                title: item.title,
-                name: item.title,
-                poster_path: item.posterPath,
-                backdrop_path: item.backdropPath,
-                media_type: item.mediaType,
-              };
-            }
-          });
+        const list = getWatchlist(); // localStorage
+        const curSig = makeSignature(list);
 
-          const detailed = await Promise.all(detailedPromises);
-          setDetailedItems(detailed);
+        // Update base list in store
+        setWatchlistItems(list);
+
+        // If signature matches and we already have detailed items, skip refetch
+        if (curSig === watchlistSignature && detailedItems.length > 0) {
+          setLoading({ isLoading: false });
+          return;
         }
+
+        // Otherwise, fetch details for each item in parallel
+        const detailedPromises = (list || []).map(async (item) => {
+          try {
+            const detailRoute = `/${item.mediaType}/${item.id}?language=en-US&append_to_response=images,content_ratings${
+              item.mediaType === 'movie' ? ',release_dates' : ''
+            }`;
+            const detailedItem = await fetchTmdb(detailRoute);
+            return { ...detailedItem, media_type: item.mediaType };
+          } catch (err) {
+            console.error(`Error fetching details for ${item.title}:`, err);
+            // Fallback to basic data if details fail
+            return {
+              id: item.id,
+              title: item.title,
+              name: item.title,
+              poster_path: item.posterPath,
+              backdrop_path: item.backdropPath,
+              media_type: item.mediaType,
+            };
+          }
+        });
+
+        const detailed = await Promise.all(detailedPromises);
+        setDetailedItems(detailed);
+        setWatchlistSignature(curSig);
+        setLastLoadedAt(Date.now());
       } catch (err) {
         console.error('Error loading watchlist:', err);
-        setError(err.message);
+        setError(err.message || 'Failed to load watchlist');
       } finally {
-        setIsLoading(false);
+        setLoading({ isLoading: false });
       }
     };
 
     loadWatchlist();
 
-    // Update when localStorage watchlist changes
+    // React to cross-tab updates to localStorage watchlist
     const handleStorageChange = (e) => {
       if (e.key === 'watchlist') {
         loadWatchlist();
       }
     };
-
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRemoveFromWatchlist = (itemId) => {
+    // Remove from localStorage (source of truth for the list)
     removeFromWatchlist(itemId);
-    const updatedWatchlist = getWatchlist();
-    setWatchlistItems(updatedWatchlist);
 
-    setDetailedItems((prev) =>
-      prev.filter((item) => item.id.toString() !== itemId.toString())
-    );
+    // Immediately reflect in UI by updating store lists
+    const updated = getWatchlist();
+    setWatchlistItems(updated);
+    setDetailedItems((prev) => prev.filter((i) => String(i.id) !== String(itemId)));
+    setWatchlistSignature(makeSignature(updated));
   };
 
   if (error) {
@@ -103,7 +135,7 @@ const Watchlist = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {detailedItems.map((item) => (
-              <div key={item.id} className="animate-scale-in relative group">
+              <div key={`${item.media_type}-${item.id}`} className="animate-scale-in relative group">
                 <CarouselItem item={item} />
                 <button
                   onClick={(e) => {

@@ -1,27 +1,28 @@
+// src/pages/browse/Filter.jsx
 import React, { useEffect, useRef, useState } from 'react';
 import Header from '../../components/Header.jsx';
 import Footer from '../../components/Footer.jsx';
 import CarouselItem from '../../components/carouselItem.jsx';
 import { SearchSkeleton } from '../../components/Skeletons.jsx';
 import { fetchTmdb } from '../../utils.jsx';
+import { useFilterStore } from '../../store/filterStore.js';
 
 const DEBOUNCE_MS = 500;
 
 const Filter = () => {
-  const [mediaType, setMediaType] = useState('movie'); // 'movie' | 'tv'
-  const [genres, setGenres] = useState([]);
-  const [selectedGenre, setSelectedGenre] = useState('');
-  const [year, setYear] = useState('');
-  const [sortBy, setSortBy] = useState('popularity.desc');
+  // ---- Zustand global state & actions ----
+  const {
+    mediaType, selectedGenre, year, sortBy,
+    results, page, totalPages, genresCache,
+    setFilters, replaceResults, appendResults, setGenresForType, clearFilters,
+  } = useFilterStore();
 
-  const [results, setResults] = useState([]);
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  // ---- Local-only UI flags ----
   const [isInitialLoading, setIsInitialLoading] = useState(false);
   const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
-  // Refs
+  // ---- Refs ----
   const sentinelRef = useRef(null);
   const debounceRef = useRef(null);
   const abortRef = useRef(null);
@@ -34,21 +35,24 @@ const Filter = () => {
     return () => window.removeEventListener('resize', onResize);
   }, []);
 
-  // Load genres whenever media type changes
+  // Load genres whenever media type changes (use cache first)
   useEffect(() => {
     let ignore = false;
-    const loadGenres = async () => {
-      try {
-        const data = await fetchTmdb(`/genre/${mediaType}/list?language=en-US`);
-        if (!ignore) setGenres(data.genres || []);
-      } catch (e) {
-        console.error('Error loading genres', e);
-      }
-    };
-    loadGenres();
-    // Reset genre if switching type
-    setSelectedGenre('');
+    const cached = genresCache?.[mediaType] || [];
+    if (cached.length === 0) {
+      (async () => {
+        try {
+          const data = await fetchTmdb(`/genre/${mediaType}/list?language=en-US`);
+          if (!ignore) setGenresForType(mediaType, data.genres || []);
+        } catch (e) {
+          console.error('Error loading genres', e);
+        }
+      })();
+    }
+    // Optional: reset genre when switching type
+    setFilters({ selectedGenre: '' });
     return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType]);
 
   // Build query params for /discover
@@ -57,7 +61,7 @@ const Filter = () => {
       sort_by: sortBy,
       with_genres: selectedGenre || '',
       page: String(pageNum),
-      language: 'en-US'
+      language: 'en-US',
     });
 
     if (mediaType === 'movie') {
@@ -95,13 +99,13 @@ const Filter = () => {
         (item) => (item.backdrop_path || item.poster_path) && item.vote_average > 0 && item.vote_count >= 3
       );
 
-      setResults(prev => (append ? [...prev, ...filtered] : filtered));
-      setPage(pageNum);
-      setTotalPages(data.total_pages || 1);
-    } catch (e) {
-      if (e.name !== 'AbortError') {
-        console.error('Fetch error', e);
+      if (append) {
+        appendResults({ results: filtered, page: pageNum, totalPages: data.total_pages || 1 });
+      } else {
+        replaceResults({ results: filtered, page: pageNum, totalPages: data.total_pages || 1 });
       }
+    } catch (e) {
+      if (e.name !== 'AbortError') console.error('Fetch error', e);
     } finally {
       if (append) setIsFetchingMore(false);
       else setIsInitialLoading(false);
@@ -109,14 +113,11 @@ const Filter = () => {
     }
   };
 
-  // Trigger initial load and reload on filter change (debounced)
+  // Debounced (re)load when filters change
   useEffect(() => {
     clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
-      // Reset and fetch first page
-      setResults([]);
-      setPage(1);
-      setTotalPages(1);
+      replaceResults({ results: [], page: 1, totalPages: 1 });
       fetchPage({ pageNum: 1, append: false });
     }, DEBOUNCE_MS);
 
@@ -126,6 +127,13 @@ const Filter = () => {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mediaType, selectedGenre, year, sortBy]);
+
+  // On mount: if we already have cached results, skip initial fetch
+  useEffect(() => {
+    if (results && results.length > 0) return; // cached
+    fetchPage({ pageNum: 1, append: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // IntersectionObserver for endless scroll
   useEffect(() => {
@@ -147,6 +155,8 @@ const Filter = () => {
     return () => observer.disconnect();
   }, [page, totalPages, isInitialLoading, isFetchingMore, mediaType, selectedGenre, year, sortBy]);
 
+  const genres = genresCache?.[mediaType] || [];
+
   return (
     <div className="min-h-screen bg-[#090a0a] pb-12 md:pb-0">
       <Header />
@@ -161,7 +171,7 @@ const Filter = () => {
           {/* Media Type */}
           <select
             value={mediaType}
-            onChange={(e) => setMediaType(e.target.value)}
+            onChange={(e) => setFilters({ mediaType: e.target.value })}
             className="bg-white/10 text-white p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20"
           >
             <option value="movie">Movies</option>
@@ -171,7 +181,7 @@ const Filter = () => {
           {/* Genre */}
           <select
             value={selectedGenre}
-            onChange={(e) => setSelectedGenre(e.target.value)}
+            onChange={(e) => setFilters({ selectedGenre: e.target.value })}
             className="bg-white/10 text-white p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20"
           >
             <option value="">All Genres</option>
@@ -185,14 +195,14 @@ const Filter = () => {
             type="number"
             placeholder="Year"
             value={year}
-            onChange={(e) => setYear(e.target.value)}
+            onChange={(e) => setFilters({ year: e.target.value })}
             className="bg-white/10 text-white p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20"
           />
 
           {/* Sort By */}
           <select
             value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
+            onChange={(e) => setFilters({ sortBy: e.target.value })}
             className="bg-white/10 text-white p-3 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20"
           >
             <option value="popularity.desc">Popularity High to Low</option>
@@ -206,11 +216,7 @@ const Filter = () => {
           {/* Clear filters */}
           <button
             type="button"
-            onClick={() => {
-              setSelectedGenre('');
-              setYear('');
-              setSortBy('popularity.desc');
-            }}
+            onClick={() => clearFilters()}
             className="bg-white/10 text-white p-3 rounded-lg hover:bg-white/15 transition"
           >
             Clear Filters

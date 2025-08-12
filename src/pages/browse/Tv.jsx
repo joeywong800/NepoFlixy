@@ -1,15 +1,29 @@
+// src/pages/browse/tv.jsx
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchTmdb, getTmdbImage, formatReleaseDate, getContentRating, isInWatchlist, toggleWatchlist } from '../../utils.jsx';
-import { Play, ThumbsUp, Plus, Info, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  fetchTmdb,
+  getTmdbImage,
+  formatReleaseDate,
+  getContentRating,
+  isInWatchlist,
+  toggleWatchlist
+} from '../../utils.jsx';
+import { Play, ThumbsUp, Plus, Info, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import CarouselItem from '../../components/carouselItem.jsx';
 import Header from '../../components/Header.jsx';
 import Footer from '../../components/Footer.jsx';
+import QuickSearch from '../../components/QuickSearch.jsx';
 import { SpotlightSkeleton, CategorySkeleton } from '../../components/Skeletons.jsx';
 import config from '../../config.json';
+import { useTvStore } from '../../store/tvStore.js';
 
 const { tmdbBaseUrl } = config;
+
+// consider data "fresh" for this long (prevents refetch when navigating back)
+const STALE_MS = 5 * 60 * 1000; // 5 minutes
 
 const tvCategories = [
   {
@@ -55,7 +69,7 @@ const tvCategories = [
   }
 ];
 
-const SpotlightSection = ({ item, isLoading }) => {
+const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
   const [inWatchlist, setInWatchlist] = useState(false);
   const navigate = useNavigate();
   
@@ -82,10 +96,29 @@ const SpotlightSection = ({ item, isLoading }) => {
   const handleLikeClick = () => { toast(`Liked ${item.title || item.name}`); };
 
   return (
-    <div id="spotlight" className="relative w-full h-[80vh] bg-cover bg-center bg-no-repeat flex items-end animate-slide-up" style={{backgroundImage: `url('${backgroundImage}')`}}>
+    <div
+      id="spotlight"
+      className="relative w-full h-[80vh] bg-cover bg-center bg-no-repeat flex items-end animate-slide-up"
+      style={{ backgroundImage: `url('${backgroundImage}')` }}
+    >
       <div className="absolute inset-0 bg-gradient-to-r from-[#090a0a]/70 via-black/20 to-transparent"></div>
       <div className="absolute inset-0 bg-gradient-to-t from-[#090a0a]/80 via-black/40 md:via-black/20 to-transparent"></div>
       <div className="absolute inset-0 bg-gradient-to-b from-[#090a0a]/80 md:from-[#090a0a]/60 via-[#090a0a]/10 to-transparent"></div>
+
+      {/* QuickSearch Bubble - Desktop Only (match Home UI) */}
+      <div className="hidden md:block absolute top-18 left-1/2 transform -translate-x-1/2 z-20 animate-fade-in-delayed backdrop-blur-sm">
+        <div
+          className="bg-white/10 border border-white/20 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg cursor-pointer hover:bg-white/15 transition-all duration-200"
+          onClick={onQuickSearchOpen}
+        >
+          <div className="flex items-center gap-1">
+            <Search className="w-4 h-4 text-white" />
+          </div>
+          <span className="text-white text-sm font-medium">
+            Press <kbd className="bg-white/20 px-1.5 py-0.5 rounded text-xs">Ctrl+G</kbd> to quickly search movies/tv from anywhere
+          </span>
+        </div>
+      </div>
 
       <div className="relative z-10 p-4 md:p-8 pb-0 w-full md:pl-8 md:pr-0 md:text-left text-center">
         {logoImage ? (
@@ -184,11 +217,11 @@ const CategorySection = ({ title, items, isLoading: categoryLoading }) => {
   };
 
   const scrollLeft = () => {
-    scrollContainerRef.current.scrollBy({ left: -300, behavior: 'smooth' });
+    scrollContainerRef.current?.scrollBy({ left: -300, behavior: 'smooth' });
   };
 
   const scrollRight = () => {
-    scrollContainerRef.current.scrollBy({ left: 300, behavior: 'smooth' });
+    scrollContainerRef.current?.scrollBy({ left: 300, behavior: 'smooth' });
   };
 
   const displayedItems = items.slice(0, visibleItems);
@@ -237,15 +270,37 @@ const CategorySection = ({ title, items, isLoading: categoryLoading }) => {
 };
 
 const Tv = () => {
-  const [spotlightItem, setSpotlightItem] = useState(null);
-  const [categoryData, setCategoryData] = useState({});
-  const [error, setError] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [spotlightLoading, setSpotlightLoading] = useState(true);
+  const {
+    categoryData,
+    spotlightItem,
+    isLoading,
+    spotlightLoading,
+    error,
+    lastFetchedAt,
+    setCategoryData,
+    setSpotlightItem,
+    setLoading,
+    setError,
+    setLastFetched
+  } = useTvStore();
+
+  const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
+  const handleQuickSearchOpen = () => setIsQuickSearchOpen(true);
 
   useEffect(() => {
+    const now = Date.now();
+    const isFresh = now - (lastFetchedAt || 0) < STALE_MS;
+    const hasCached = Object.keys(categoryData || {}).length > 0 && !!spotlightItem;
+
+    if (isFresh && hasCached) {
+      // restore flags when using cache
+      setLoading({ isLoading: false, spotlightLoading: false });
+      return;
+    }
+
     const loadData = async () => {
       try {
+        setLoading({ isLoading: true, spotlightLoading: true, error: null });
         const promises = tvCategories.map(async (category) => {
           const route = category.url.replace(category.detailUrl, '');
           const data = await fetchTmdb(route);
@@ -255,33 +310,37 @@ const Tv = () => {
         const results = await Promise.all(promises);
         const newCategoryData = {};
         
+        let heroDetailedSet = false;
         results.forEach((result) => {
           newCategoryData[result.title] = result.data;
-          if (result.updateHero && result.data.length > 0) {
+
+          if (result.updateHero && result.data.length > 0 && !heroDetailedSet) {
+            heroDetailedSet = true;
             const heroItem = result.data[0];
             const detailRoute = `/tv/${heroItem.id}?language=en-US&append_to_response=images,content_ratings&include_image_language=en`;
             fetchTmdb(detailRoute).then(detailedItem => {
               setSpotlightItem(detailedItem);
-              setSpotlightLoading(false);
+              setLoading({ spotlightLoading: false });
             }).catch(err => {
               console.error('Error fetching detailed hero data:', err);
               setSpotlightItem(heroItem);
-              setSpotlightLoading(false);
+              setLoading({ spotlightLoading: false });
             });
           }
         });
         
         setCategoryData(newCategoryData);
-        setIsLoading(false);
+        setLoading({ isLoading: false });
+        setLastFetched(Date.now());
       } catch (err) {
-        setError(err.message);
-        setIsLoading(false);
-        setSpotlightLoading(false);
+        setError(err.message || 'Failed to load');
+        setLoading({ isLoading: false, spotlightLoading: false });
         console.error('Error loading data:', err);
       }
     };
 
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (error) {
@@ -295,7 +354,7 @@ const Tv = () => {
   return (
     <div className="min-h-screen bg-[#090a0a] pb-12 md:pb-0">
       <Header />
-      <SpotlightSection item={spotlightItem} isLoading={spotlightLoading} />
+      <SpotlightSection item={spotlightItem} isLoading={spotlightLoading} onQuickSearchOpen={handleQuickSearchOpen} />
       <div className="px-8 py-8 space-y-8">
         {tvCategories.map((category, index) => {
           const items = categoryData[category.title] || [];
@@ -311,6 +370,9 @@ const Tv = () => {
         })}
       </div>
       <Footer />
+
+      {/* QuickSearch Component */}
+      <QuickSearch isOpen={isQuickSearchOpen} onOpenChange={setIsQuickSearchOpen} />
     </div>
   );
 };
