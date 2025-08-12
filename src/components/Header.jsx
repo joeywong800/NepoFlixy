@@ -8,6 +8,7 @@ import {
   Film,
   Cat,
   MoreHorizontal,
+  FilterIcon,
 } from 'lucide-react';
 
 // Define your core navigation items. The first three will show directly in the nav bar,
@@ -16,6 +17,7 @@ const navItems = [
   { to: '/', label: 'Home', icon: Home, type: 'nav' },
   { to: '/movies', label: 'Movies', icon: Film, type: 'nav' },
   { to: '/tv', label: 'TV Shows', icon: Tv, type: 'nav' },
+  { to: '/filter', label: 'Filter', icon: FilterIcon, type: 'nav' },
   { to: '/anime', label: 'Anime', icon: Cat, type: 'nav' },
 ];
 

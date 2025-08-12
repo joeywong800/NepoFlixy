@@ -17,6 +17,7 @@ const Search = () => {
   const [isMobile, setIsMobile] = useState(false);
 
   const inputRef = useRef(null);
+  const debounceRef = useRef(null);
 
   useEffect(() => {
     const queryFromUrl = searchParams.get('query');
@@ -45,7 +46,6 @@ const Search = () => {
       const searchRoute = `/search/multi?query=${encodeURIComponent(query)}&language=en-US&page=1`;
       const data = await fetchTmdb(searchRoute);
 
-      // Keep only movies and TV shows with valid ratings
       const filteredResults = data.results.filter(
         (item) =>
           (item.media_type === 'movie' || item.media_type === 'tv') &&
@@ -62,14 +62,24 @@ const Search = () => {
     }
   };
 
-  const handleSearch = async (e) => {
-    e.preventDefault();
-    if (!searchQuery.trim()) return;
-    setSearchParams({ query: searchQuery });
-    await performSearch(searchQuery);
-  };
+  // Auto-search when typing (debounced)
+  const handleInputChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
 
-  const handleInputChange = (e) => setSearchQuery(e.target.value);
+    clearTimeout(debounceRef.current);
+
+    debounceRef.current = setTimeout(() => {
+      if (value.trim()) {
+        setSearchParams({ query: value });
+        performSearch(value);
+      } else {
+        setSearchResults([]);
+        setHasSearched(false);
+        setSearchParams({});
+      }
+    }, 500); // 500ms delay
+  };
 
   if (error) {
     return (
@@ -86,8 +96,8 @@ const Search = () => {
       <div className="pt-8 md:pt-24 px-8 pb-8">
         <h1 className="text-4xl font-bold text-white mb-4">What do you feel like watching?</h1>
 
-        {/* Search Form */}
-        <form onSubmit={handleSearch} className="mb-8">
+        {/* Search Input */}
+        <div className="mb-8">
           <div className="relative w-full">
             <input
               ref={inputRef}
@@ -97,14 +107,9 @@ const Search = () => {
               placeholder="Search for movies or TV shows..."
               className="w-full bg-white/10 text-white text-lg px-4 py-3 pr-12 rounded-lg focus:outline-none focus:ring-1 focus:ring-white/20"
             />
-            <button
-              type="submit"
-              className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70 hover:text-white transition-colors"
-            >
-              <SearchIcon className="w-5 h-5" />
-            </button>
+            <SearchIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 text-white/70" />
           </div>
-        </form>
+        </div>
 
         {isLoading ? (
           <SearchSkeleton />
