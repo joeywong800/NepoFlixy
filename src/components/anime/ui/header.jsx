@@ -99,8 +99,8 @@ export default function AnimeHeader() {
       
       <div className="flex items-center">
         <div className="text-2xl" style={{ fontFamily: 'Instrument Serif' }}>
-          <Link to="/" className="hover:text-blue-400 transition duration-200 active:scale-90">quickwatch</Link>
-          <Link to="/anime" className="hover:text-pink-400 transition duration-200 active:scale-90">{" "}anime</Link>
+          <Link to="/" className="hover:text-blue-400 transition duration-200 active:scale-90">NepoFlix</Link>
+          <Link to="/anime" className="hover:text-pink-400 transition duration-200 active:scale-90">{" "}Anime</Link>
         </div>
       </div>
 
