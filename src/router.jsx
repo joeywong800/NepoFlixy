@@ -17,6 +17,7 @@ import AnimeSearch from './pages/anime/search.jsx';
 import NotFound from './pages/404.jsx';
 import OpenSource from './pages/OpenSource.jsx';
 import QuickSearch from './components/QuickSearch.jsx';
+import Filter from './pages/browse/Filter.jsx';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
         <Route path="/home" element={<Home />} />
         <Route path="/movies" element={<Movies />} />
         <Route path="/tv" element={<Tv />} />
+        <Route path="/filter" element={<Filter />} />
         <Route path="/movie/:tmdbId" element={<Details />} />
         <Route path="/tv/:tmdbId" element={<Details />} />
         <Route path="/person/:personId" element={<CastDetails />} />
