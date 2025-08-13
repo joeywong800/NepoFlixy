@@ -15,7 +15,7 @@ import AnimeHome from './pages/anime/home.jsx';
 import AnimeDetails from './pages/anime/details.jsx';
 import AnimeSearch from './pages/anime/search.jsx';
 import NotFound from './pages/404.jsx';
-import OpenSource from './pages/OpenSource.jsx';
+// import OpenSource from './pages/OpenSource.jsx'; // Removed as file deleted
 import QuickSearch from './components/QuickSearch.jsx';
 import Filter from './pages/browse/Filter.jsx';
 
@@ -40,7 +40,8 @@ export default function App() {
         <Route path="/e/fox/:tmdbid" element={<Xprime />} />
         <Route path="/e/fox/:tmdbid/:season/:episode" element={<Xprime />} />
         <Route path="/e/zenime/:episodeId/:server/:type" element={<Zenime />} />
-        <Route path="/opensource" element={<OpenSource />} />
+        {/* Removed /opensource route */}
+        {/* <Route path="/opensource" element={<OpenSource />} /> */}
         <Route path="*" element={<NotFound />} />
       </Routes>
       <QuickSearch />
