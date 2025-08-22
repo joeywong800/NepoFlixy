@@ -1,3 +1,7 @@
+// src/components/player/helpers.jsx
+
+import { saveProgress } from '../../utils.jsx'; // <-- added
+
 export const formatTime = (time) => {
   const hours = Math.floor(time / 3600);
   const minutes = Math.floor((time % 3600) / 60);
@@ -469,4 +473,83 @@ export const extractQualitiesFromM3U8 = async (m3u8Url, createProxyUrl, headers 
     console.error('Error extracting qualities from M3U8:', error);
     return [];
   }
+};
+
+/* =========================================================================
+   ==== PROGRESS PERSISTENCE (Supabase/localStorage) =======================
+   Call attachProgressTracking(videoRef, meta) from your player component.
+   meta: { id, mediaType, season=0, episode=0, sourceIndex=0 }
+   - Saves every ~10s, and on pause, ended, tab hide, beforeunload.
+   - Uses saveProgress from utils (which handles Supabase vs localStorage).
+   ========================================================================= */
+
+function bindProgressPersistence(videoRef, meta) {
+  const video = videoRef.current;
+  if (!video) return () => {};
+
+  const state = {
+    lastFlushTs: 0,
+    intervalId: null,
+    destroyed: false,
+  };
+
+  const flush = async (force = false) => {
+    if (!video || state.destroyed) return;
+    const now = Date.now();
+    if (!force && now - state.lastFlushTs < 9500) return; // throttle ~10s
+
+    const payload = {
+      id: meta?.id ?? null,
+      mediaType: meta?.mediaType ?? 'movie',
+      season: meta?.season ?? 0,
+      episode: meta?.episode ?? 0,
+      sourceIndex: meta?.sourceIndex ?? 0,
+      fullDuration: Math.max(0, Math.floor(video.duration || 0)),
+      watchedDuration: Math.max(0, Math.floor(video.currentTime || 0)),
+      timestamp: now,
+    };
+
+    try {
+      await saveProgress(payload);
+      state.lastFlushTs = now;
+    } catch (e) {
+      // non-fatal
+      console.warn('saveProgress failed:', e);
+    }
+  };
+
+  const onPause = () => flush(true);
+  const onEnded = () => flush(true);
+  const onVisibilityChange = () => {
+    if (document.hidden) flush(true);
+  };
+  const onBeforeUnload = () => { flush(true); };
+
+  video.addEventListener('pause', onPause);
+  video.addEventListener('ended', onEnded);
+  document.addEventListener('visibilitychange', onVisibilityChange);
+  window.addEventListener('beforeunload', onBeforeUnload);
+
+  // periodic save
+  state.intervalId = setInterval(() => flush(false), 10000);
+
+  // initial prime (after metadata known)
+  const onLoadedMetadata = () => flush(true);
+  video.addEventListener('loadedmetadata', onLoadedMetadata);
+
+  // return cleanup
+  return () => {
+    state.destroyed = true;
+    if (state.intervalId) clearInterval(state.intervalId);
+    video.removeEventListener('pause', onPause);
+    video.removeEventListener('ended', onEnded);
+    video.removeEventListener('loadedmetadata', onLoadedMetadata);
+    document.removeEventListener('visibilitychange', onVisibilityChange);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+  };
+}
+
+export const attachProgressTracking = (videoRef, meta) => {
+  // meta: { id, mediaType, season=0, episode=0, sourceIndex=0 }
+  return bindProgressPersistence(videoRef, meta);
 };

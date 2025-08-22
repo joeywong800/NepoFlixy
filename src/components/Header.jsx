@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Search,
   Bookmark,
@@ -9,7 +9,13 @@ import {
   Cat,
   MoreHorizontal,
   FilterIcon,
+  LogIn,
+  UserPlus,
+  LogOut,
+  User as UserIcon,
 } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { setAuthUser } from '../utils.jsx';
 
 // Define your core navigation items. The first three will show directly in the nav bar,
 // all others (including the optional iOS install link) will be grouped into a "More" menu.
@@ -37,11 +43,34 @@ const Header = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileHeaderOpacity, setMobileHeaderOpacity] = useState(1);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [user, setUser] = useState(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
   const lastScrollY = useRef(0);
   const moreMenuRef = useRef(null);
+  const profileMenuRef = useRef(null);
 
   const location = useLocation();
+  const navigate = useNavigate();
 
+  // Load auth state & listen for changes
+  useEffect(() => {
+    let unsub;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      const u = data?.session?.user ?? null;
+      setUser(u);
+      setAuthUser(u);
+      unsub = supabase.auth.onAuthStateChange((_e, session) => {
+        const nextUser = session?.user ?? null;
+        setUser(nextUser);
+        setAuthUser(nextUser);
+      }).data.subscription;
+    })();
+    return () => unsub?.unsubscribe?.();
+  }, []);
+
+  // Scroll behavior
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -65,37 +94,54 @@ const Header = () => {
   const showIOSInstall = isIOS && !isPWA;
 
   // Combine nav items, header icons, and optional install link into a single list.
-  // The first three of these will be shown by default; all others will appear in the "More" menu.
   const combinedNavItems = [
     ...navItems,
     ...headerIcons,
     ...(showIOSInstall
-      ? [
-          {
-            to: '/ios',
-            label: 'Install',
-            icon: InstallIcon,
-            type: 'install',
-          },
-        ]
+      ? [{ to: '/ios', label: 'Install', icon: InstallIcon, type: 'install' }]
       : []),
   ];
 
   const visibleItems = combinedNavItems.slice(0, 3);
   const moreItems = combinedNavItems.slice(3);
 
-  // Close the more menu when clicking outside of it
+  // Close the "More" or profile menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
         setShowMoreMenu(false);
       }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target)) {
+        setShowProfileMenu(false);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => { document.removeEventListener('mousedown', handleClickOutside); };
   }, []);
+
+  const onLogout = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
+    setAuthUser(null);
+    setShowProfileMenu(false);
+    // stay on the same page or navigate home if you prefer:
+    // navigate('/');
+  };
+
+  const userBadge = (() => {
+    if (!user) return null;
+    const email = user.email || '';
+    const letter = email?.[0]?.toUpperCase?.() || 'U';
+    return (
+      <button
+        onClick={() => setShowProfileMenu((v) => !v)}
+        className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/30 flex items-center justify-center text-sm font-semibold"
+        aria-label="Account menu"
+      >
+        {letter}
+      </button>
+    );
+  })();
 
   return (
     <>
@@ -144,6 +190,42 @@ const Header = () => {
               <Icon className="w-5 h-5" />
             </NavLink>
           ))}
+
+          {/* Auth section (desktop) */}
+          {!user ? (
+            <div className="flex items-center gap-2 ml-2">
+              <button
+                onClick={() => navigate('/login', { state: { from: location.pathname } })}
+                className="px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors flex items-center gap-2"
+              >
+                <LogIn className="w-4 h-4" /> <span>Sign in</span>
+              </button>
+              <button
+                onClick={() => navigate('/signup', { state: { from: location.pathname } })}
+                className="px-3 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 text-white transition-colors flex items-center gap-2"
+              >
+                <UserPlus className="w-4 h-4" /> <span>Create account</span>
+              </button>
+            </div>
+          ) : (
+            <div className="relative ml-2" ref={profileMenuRef}>
+              {userBadge}
+              {showProfileMenu && (
+                <div className="absolute right-0 mt-2 bg-[#232323ab] backdrop-blur-lg rounded-lg shadow-lg py-2 px-2 min-w-[200px]">
+                  <div className="px-3 py-2 text-sm text-zinc-300 flex items-center gap-2">
+                    <UserIcon className="w-4 h-4" />
+                    <span className="truncate">{user.email}</span>
+                  </div>
+                  <button
+                    onClick={onLogout}
+                    className="w-full text-left px-3 py-2 rounded-md text-zinc-300 hover:bg-white/10 flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" /> Sign out
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
@@ -166,50 +248,72 @@ const Header = () => {
             aria-label={label}
             aria-current={location.pathname === to ? 'page' : undefined}
           >
-            {/* Always show the icon and label on mobile */}
             {Icon && <Icon className="w-6 h-6" />}
             <span className="text-xs mt-1">{label}</span>
           </NavLink>
         ))}
 
         {/* More button on mobile */}
-        {moreItems.length > 0 && (
-          <div className="relative">
-            <button
-              onClick={() => setShowMoreMenu((prev) => !prev)}
-              className="flex flex-col items-center text-zinc-400 hover:text-white transition-colors"
-              aria-label="More"
+        <div className="relative">
+          <button
+            onClick={() => setShowMoreMenu((prev) => !prev)}
+            className="flex flex-col items-center text-zinc-400 hover:text-white transition-colors"
+            aria-label="More"
+          >
+            <MoreHorizontal className="w-6 h-6" />
+            <span className="text-xs mt-1">More</span>
+          </button>
+          {showMoreMenu && (
+            <div
+              ref={moreMenuRef}
+              className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-[#232323ab] backdrop-blur-lg rounded-lg shadow-lg py-2 px-4 z-50 min-w-[220px]"
             >
-              <MoreHorizontal className="w-6 h-6" />
-              <span className="text-xs mt-1">More</span>
-            </button>
-            {showMoreMenu && (
-              <div
-                ref={moreMenuRef}
-                className="absolute bottom-16 left-1/2 transform -translate-x-1/2 bg-[#232323ab] backdrop-blur-lg rounded-lg shadow-lg py-2 px-4 z-50 min-w-[200px]"
-              >
-                {moreItems.map(({ to, label, icon: Icon }, idx) => (
-                  <NavLink
-                    key={idx}
-                    to={to}
-                    end={to === '/'}
-                    onClick={() => setShowMoreMenu(false)}
-                    className={({ isActive }) =>
-                      `flex items-center gap-2 py-2 px-4 transition-colors ${
-                        isActive ? 'text-white' : 'text-zinc-400 hover:text-white'
-                      }`
-                    }
-                    aria-label={label}
-                    aria-current={location.pathname === to ? 'page' : undefined}
+              {moreItems.map(({ to, label, icon: Icon }, idx) => (
+                <NavLink
+                  key={idx}
+                  to={to}
+                  end={to === '/'}
+                  onClick={() => setShowMoreMenu(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-2 py-2 px-4 transition-colors ${
+                      isActive ? 'text-white' : 'text-zinc-400 hover:text-white'
+                    }`
+                  }
+                  aria-label={label}
+                  aria-current={location.pathname === to ? 'page' : undefined}
+                >
+                  {Icon && <Icon className="w-5 h-5" />}
+                  <span>{label}</span>
+                </NavLink>
+              ))}
+
+              {/* Auth items in More menu (mobile) */}
+              {!user ? (
+                <>
+                  <button
+                    onClick={() => { setShowMoreMenu(false); navigate('/login', { state: { from: location.pathname } }); }}
+                    className="w-full text-left flex items-center gap-2 py-2 px-4 text-zinc-400 hover:text-white"
                   >
-                    {Icon && <Icon className="w-5 h-5" />}
-                    <span>{label}</span>
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+                    <LogIn className="w-5 h-5" /> <span>Sign in</span>
+                  </button>
+                  <button
+                    onClick={() => { setShowMoreMenu(false); navigate('/signup', { state: { from: location.pathname } }); }}
+                    className="w-full text-left flex items-center gap-2 py-2 px-4 text-zinc-400 hover:text-white"
+                  >
+                    <UserPlus className="w-5 h-5" /> <span>Create account</span>
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={async () => { setShowMoreMenu(false); await onLogout(); }}
+                  className="w-full text-left flex items-center gap-2 py-2 px-4 text-zinc-400 hover:text-white"
+                >
+                  <LogOut className="w-5 h-5" /> <span>Sign out</span>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
     </>
   );

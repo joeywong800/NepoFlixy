@@ -10,11 +10,13 @@ import { useWatchlistStore } from '../store/watchlistStore.js';
 
 const makeSignature = (list) =>
   JSON.stringify(
-    (list || []).map((x) => ({ id: String(x.id), mediaType: x.mediaType })).sort((a, b) => {
-      // keep stable signature regardless of order
-      if (a.mediaType === b.mediaType) return a.id.localeCompare(b.id);
-      return a.mediaType.localeCompare(b.mediaType);
-    })
+    (list || [])
+      .map((x) => ({ id: String(x.id), mediaType: x.mediaType }))
+      .sort((a, b) => {
+        // keep stable signature regardless of order
+        if (a.mediaType === b.mediaType) return a.id.localeCompare(b.id);
+        return a.mediaType.localeCompare(b.mediaType);
+      })
   );
 
 const Watchlist = () => {
@@ -34,11 +36,16 @@ const Watchlist = () => {
 
   // Load/refresh watchlist + details (only when list actually changes)
   useEffect(() => {
+    let cancelled = false;
+
     const loadWatchlist = async () => {
       try {
         setLoading({ isLoading: true, error: null });
 
-        const list = getWatchlist(); // localStorage
+        // NEW: async (Supabase or localStorage)
+        const list = await getWatchlist();
+        if (cancelled) return;
+
         const curSig = makeSignature(list);
 
         // Update base list in store
@@ -73,6 +80,8 @@ const Watchlist = () => {
         });
 
         const detailed = await Promise.all(detailedPromises);
+        if (cancelled) return;
+
         setDetailedItems(detailed);
         setWatchlistSignature(curSig);
         setLastLoadedAt(Date.now());
@@ -80,29 +89,33 @@ const Watchlist = () => {
         console.error('Error loading watchlist:', err);
         setError(err.message || 'Failed to load watchlist');
       } finally {
-        setLoading({ isLoading: false });
+        if (!cancelled) setLoading({ isLoading: false });
       }
     };
 
     loadWatchlist();
 
-    // React to cross-tab updates to localStorage watchlist
+    // React to cross-tab updates to localStorage watchlist (anonymous users)
     const handleStorageChange = (e) => {
       if (e.key === 'watchlist') {
         loadWatchlist();
       }
     };
     window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('storage', handleStorageChange);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRemoveFromWatchlist = (itemId) => {
-    // Remove from localStorage (source of truth for the list)
-    removeFromWatchlist(itemId);
+  const handleRemoveFromWatchlist = async (itemId) => {
+    // NEW: async removal (Supabase or localStorage)
+    await removeFromWatchlist(itemId);
 
     // Immediately reflect in UI by updating store lists
-    const updated = getWatchlist();
+    const updated = await getWatchlist();
     setWatchlistItems(updated);
     setDetailedItems((prev) => prev.filter((i) => String(i.id) !== String(itemId)));
     setWatchlistSignature(makeSignature(updated));
