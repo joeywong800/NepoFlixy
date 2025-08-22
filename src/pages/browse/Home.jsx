@@ -1,5 +1,5 @@
 // src/pages/browse/Home.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   fetchTmdb,
@@ -8,22 +8,21 @@ import {
   getContentRating,
   isInWatchlist,
   toggleWatchlist,
+  getContinueWatchingCards, // Supabase + fallback
 } from '../../utils.jsx';
-import { Play, ThumbsUp, Plus, Info, Search } from 'lucide-react';
+import { Play, ThumbsUp, Plus, Info, Search, ChevronRight } from 'lucide-react';
 import { toast } from 'sonner';
 import Header from '../../components/Header.jsx';
 import Footer from '../../components/Footer.jsx';
 import QuickSearch from '../../components/QuickSearch.jsx';
 import { SpotlightSkeleton } from '../../components/Skeletons.jsx';
-import { getAllContinueWatching } from '../../components/progress/index.jsx';
 import EnhancedCategorySection from '../../components/enhanced-carousel.jsx';
 import config from '../../config.json';
 import { useHomeStore } from '../../store/homeStore.js';
 
 const { tmdbBaseUrl } = config;
-
-// How long we consider the home data "fresh" (avoid refetch within this window)
 const STALE_MS = 5 * 60 * 1000; // 5 minutes
+const MAX_CW_VISIBLE = 8;       // how many CW cards to show on the home row
 
 const categories = [
   {
@@ -59,39 +58,45 @@ const categories = [
   },
 ];
 
+/* -------------------------------------------------------------
+   Spotlight (unchanged)
+--------------------------------------------------------------*/
 const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
   const [inWatchlist, setInWatchlist] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (item && item.id) {
-      setInWatchlist(isInWatchlist(item.id));
-    }
+    let active = true;
+    (async () => {
+      if (item && item.id) {
+        try {
+          const present = await isInWatchlist(item.id);
+          if (active) setInWatchlist(present);
+        } catch {
+          if (active) setInWatchlist(false);
+        }
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [item]);
 
-  if (isLoading || !item) {
-    return <SpotlightSkeleton />;
-  }
+  if (isLoading || !item) return <SpotlightSkeleton />;
 
   const backgroundImage = getTmdbImage(item.backdrop_path) || getTmdbImage(item.poster_path);
   const logoImage = item.images?.logos?.find((logo) => logo.iso_639_1 === 'en')?.file_path;
   const mediaType = item.title ? 'movie' : 'tv';
 
-  const handleWatchlistToggle = (e) => {
+  const handleWatchlistToggle = async (e) => {
     e.stopPropagation();
-    const isAdded = toggleWatchlist(item);
-    setInWatchlist(isAdded);
+    const added = await toggleWatchlist(item);
+    setInWatchlist(added);
   };
 
-  const handleWatchClick = () => {
-    navigate(`/${mediaType}/${item.id}?watch=1`);
-  };
-  const handleInfoClick = () => {
-    navigate(`/${mediaType}/${item.id}`);
-  };
-  const handleLikeClick = () => {
-    toast(`Liked ${item.title || item.name}`);
-  };
+  const handleWatchClick = () => navigate(`/${mediaType}/${item.id}?watch=1`);
+  const handleInfoClick = () => navigate(`/${mediaType}/${item.id}`);
+  const handleLikeClick = () => toast(`Liked ${item.title || item.name}`);
 
   return (
     <div
@@ -99,26 +104,23 @@ const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
       className="relative w-full h-[60vh] sm:h-[70vh] md:h-[80vh] bg-cover bg-center bg-no-repeat flex items-end animate-slide-up"
       style={{ backgroundImage: `url('${backgroundImage}')` }}
     >
-      <div className="absolute inset-0 bg-gradient-to-r from-[#090a0a]/70 via-black/20 to-transparent"></div>
-      <div className="absolute inset-0 bg-gradient-to-t from-[#090a0a]/80 via-black/40 md:via-black/20 to-transparent"></div>
-      <div className="absolute inset-0 bg-gradient-to-b from-[#090a0a]/80 md:from-[#090a0a]/60 via-[#090a0a]/10 to-transparent"></div>
+      <div className="absolute inset-0 bg-gradient-to-r from-[#090a0a]/70 via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-[#090a0a]/80 via-black/40 md:via-black/20 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-b from-[#090a0a]/80 md:from-[#090a0a]/60 via-[#090a0a]/10 to-transparent" />
 
       {/* QuickSearch Bubble - Desktop Only */}
-      <div className="hidden md:block absolute top-18 left-1/2 transform -translate-x-1/2 z-20 animate-fade-in-delayed backdrop-blur-sm">
+      <div className="hidden md:block absolute top-18 left-1/2 -translate-x-1/2 z-20 animate-fade-in-delayed backdrop-blur-sm">
         <div
           className="bg-white/10 border border-white/20 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg cursor-pointer hover:bg-white/15 transition-all duration-200"
           onClick={onQuickSearchOpen}
         >
-          <div className="flex items-center gap-1">
-            <Search className="w-4 h-4 text-white" />
-          </div>
+          <Search className="w-4 h-4 text-white" />
           <span className="text-white text-sm font-medium">
             Press <kbd className="bg-white/20 px-1.5 py-0.5 rounded text-xs">Ctrl+G</kbd> to quickly search movies/tv from anywhere
           </span>
         </div>
       </div>
 
-      {/* Content container */}
       <div className="relative z-10 p-4 md:p-8 pb-0 w-full md:pl-8 md:pr-0 md:text-left text-center">
         {logoImage ? (
           <img
@@ -132,7 +134,6 @@ const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
           </h1>
         )}
 
-        {/* Rating and info */}
         <div className="flex items-center gap-1 sm:gap-2 mb-4 animate-fade-in-delayed-2 justify-center md:justify-start flex-wrap">
           <div className="bg-gradient-to-r from-[#90cea1] to-[#01b4e4] text-black px-1 py-[1px] rounded font-black tracking-tighter text-sm">
             TMDB
@@ -152,12 +153,10 @@ const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
           <span className="text-green-400 text-sm sm:text-base hidden sm:inline">100% match</span>
         </div>
 
-        {/* Description */}
         <p className="text-white text-sm sm:text-base md:text-lg mb-6 sm:mb-8 md:mb-16 leading-5 sm:leading-6 max-w-xl line-clamp-3 overflow-ellipsis animate-fade-in-delayed-3 mx-auto md:mx-0">
           {item.overview}
         </p>
 
-        {/* Action buttons */}
         <div className="flex flex-col md:flex-row mb-4 w-full md:justify-between items-center gap-4 animate-fade-in-delayed-4">
           <div className="flex items-center gap-2 justify-center">
             <button
@@ -192,23 +191,128 @@ const SpotlightSection = ({ item, isLoading, onQuickSearchOpen }) => {
             <span className="bg-white/15 text-white p-2 pl-3 pr-12 font-light">{getContentRating(item)}</span>
           </div>
         </div>
-
-        {/* Genre tags */}
-        <div className="flex gap-2 text-neutral-600 text-xs sm:text-sm mb-3 animate-fade-in-delayed-5 justify-center md:justify-start flex-wrap">
-          {item.genres.slice(0, 3).map((genre, index) => (
-            <React.Fragment key={genre.id}>
-              <span>{genre.name}</span>
-              {index < Math.min(item.genres.length - 1, 2) && <span>•</span>}
-            </React.Fragment>
-          ))}
-        </div>
       </div>
     </div>
   );
 };
 
+/* -------------------------------------------------------------
+   Continue Watching Row (single row + "View more")
+--------------------------------------------------------------*/
+const ContinueWatchingRow = ({ items }) => {
+  const navigate = useNavigate();
+  const showMore = items.length > MAX_CW_VISIBLE;
+
+  const visible = useMemo(() => items.slice(0, MAX_CW_VISIBLE), [items]);
+
+  const cards = useMemo(
+    () =>
+      visible.map((it) => {
+        const mt = (it.mediaType || it.media_type || (it.title ? 'movie' : 'tv')).toLowerCase();
+        const id = it.id;
+        const season = mt === 'movie' ? 1 : Math.max(1, it.__progress?.season ?? it.season_number ?? it.season ?? 1);
+        const episode = mt === 'movie' ? 1 : Math.max(1, it.__progress?.episode ?? it.episode_number ?? it.episode ?? 1);
+        const path = `/${mt}/${id}?watch=1&season=${season}&episode=${episode}`;
+
+        const full = Number(it.__progress?.fullDuration ?? it.full_duration ?? it.fullDuration ?? 0);
+        const watched = Number(it.__progress?.watchedDuration ?? it.watched_duration ?? it.watchedDuration ?? 0);
+        const pct = full > 0 ? Math.min(100, Math.round((watched / full) * 100)) : 0;
+
+        const remainingLabel = (() => {
+          if (!full) return '0 left';
+          const rem = Math.max(0, full - watched);
+          const minutes = Math.round(rem / 60);
+          if (minutes >= 60) {
+            const h = Math.floor(minutes / 60);
+            const m = minutes % 60;
+            return `${h}h${m}m left`;
+          }
+          return `${minutes}m left`;
+        })();
+
+        const sub = mt === 'movie'
+          ? `Movie • ${remainingLabel}`
+          : `S${season} • E${episode} • ${remainingLabel}`;
+
+        return {
+          id,
+          mt,
+          season,
+          episode,
+          path,
+          pct,
+          sub,
+          img: getTmdbImage(it.backdrop_path) || getTmdbImage(it.poster_path),
+          title: it.title || it.name || 'Untitled',
+        };
+      }),
+    [visible]
+  );
+
+  if (!cards.length) return null;
+
+  return (
+    <section className="animate-stagger" style={{ animationDelay: '0ms' }}>
+      <div className="px-2 sm:px-4 md:px-8 mb-3 flex items-center justify-between">
+        <h2 className="text-white text-2xl font-semibold">Continue Watching</h2>
+        {showMore && (
+          <button
+            onClick={() => navigate('/continue-watching')}
+            className="text-white/80 hover:text-white text-sm inline-flex items-center gap-1"
+          >
+            View more <ChevronRight className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      <div className="px-2 sm:px-4 md:px-8">
+        <div className="grid grid-flow-col auto-cols-[75%] sm:auto-cols-[50%] md:auto-cols-[33%] lg:auto-cols-[25%] gap-3 md:gap-4 overflow-x-auto pb-2 hide-scrollbar">
+          {cards.map((c) => (
+            <button
+              key={`${c.mt}-${c.id}`}
+              className="relative group rounded-xl overflow-hidden bg-neutral-900 text-left"
+              onClick={() => navigate(c.path)}
+              aria-label={`Continue ${c.title}`}
+            >
+              <div className="w-full aspect-video bg-cover bg-center" style={{ backgroundImage: `url('${c.img || ''}')` }} />
+              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
+              <div className="absolute left-3 bottom-10">
+                <div className="bg-white/15 backdrop-blur-xs text-white text-sm md:text-base px-3 py-1.5 rounded-full shadow">
+                  Continue watching
+                </div>
+              </div>
+              <div className="absolute left-3 bottom-4 text-xs md:text-sm text-white/90">
+                {c.sub}
+              </div>
+              <div className="absolute left-0 right-0 bottom-0 h-1.5 bg-white/10">
+                <div className="h-full bg-white/90" style={{ width: `${c.pct}%` }} />
+              </div>
+            </button>
+          ))}
+
+          {/* “View more” tile at the end (only if there are more) */}
+          {showMore && (
+            <button
+              onClick={() => navigate('/continue-watching')}
+              className="relative rounded-xl overflow-hidden bg-neutral-900/60 border border-white/10 hover:bg-neutral-800/80 transition"
+            >
+              <div className="w-full aspect-video flex items-center justify-center">
+                <div className="text-white/90 text-sm sm:text-base inline-flex items-center gap-2">
+                  View more <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+/* -------------------------------------------------------------
+   Home
+--------------------------------------------------------------*/
 const Home = () => {
-  // ---- Grab state from Zustand store ----
   const {
     categoryData,
     spotlightItem,
@@ -226,85 +330,81 @@ const Home = () => {
   } = useHomeStore();
 
   const [isQuickSearchOpen, setIsQuickSearchOpen] = useState(false);
-
   const handleQuickSearchOpen = () => setIsQuickSearchOpen(true);
-  const handleQuickSearchClose = () => setIsQuickSearchOpen(false);
 
-  // Compute Continue Watching on mount (local only; no network)
+  // Load Continue Watching
   useEffect(() => {
-    const cw = getAllContinueWatching();
-    const latestEpisodes = cw.reduce((acc, item) => {
-      const key = `${item.id}-${item.mediaType}`;
-      if (!acc[key] || item.timestamp > acc[key].timestamp) acc[key] = item;
-      return acc;
-    }, {});
-    setContinueWatchingItems(Object.values(latestEpisodes));
+    let cancelled = false;
+    (async () => {
+      try {
+        const items = await getContinueWatchingCards(50); // fetch a generous number; we only show MAX_CW_VISIBLE here
+        if (!cancelled) setContinueWatchingItems(items ?? []);
+      } catch (e) {
+        console.error('CW load error', e);
+        if (!cancelled) setContinueWatchingItems([]);
+      }
+    })();
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Categories + spotlight loader (cached freshness)
   useEffect(() => {
-    // If data is fresh, skip refetch
     const now = Date.now();
     const isFresh = now - (lastFetchedAt || 0) < STALE_MS;
-    const hasCachedCategories = Object.keys(categoryData || {}).length > 0 && !!spotlightItem;
-
-    if (isFresh && hasCachedCategories) {
-      // Ensure loading flags are false when restoring from cache
+    const hasCached = Object.keys(categoryData || {}).length > 0 && !!spotlightItem;
+    if (isFresh && hasCached) {
       setLoading({ isLoading: false, spotlightLoading: false });
       return;
     }
 
-    const loadData = async () => {
+    const load = async () => {
       try {
         setLoading({ isLoading: true, spotlightLoading: true, error: null });
 
-        // Fetch all categories in parallel
-        const promises = categories.map(async (category) => {
-          const route = category.url.replace(category.detailUrl, '');
+        const promises = categories.map(async (c) => {
+          const route = c.url.replace(c.detailUrl, '');
           const data = await fetchTmdb(route);
-          return { ...category, data: data.results || [] };
+          return { ...c, data: data.results || [] };
         });
 
         const results = await Promise.all(promises);
-        const newCategoryData = {};
+        const next = {};
+        let heroSet = false;
 
-        let heroDetailedSet = false;
+        results.forEach((r) => {
+          next[r.title] = r.data;
 
-        results.forEach((result) => {
-          newCategoryData[result.title] = result.data;
-
-          if (result.updateHero && result.data.length > 0 && !heroDetailedSet) {
-            heroDetailedSet = true;
-            const heroItem = result.data[0];
+          if (r.updateHero && r.data.length > 0 && !heroSet) {
+            heroSet = true;
+            const heroItem = r.data[0];
             const detailRoute = `/${heroItem.title ? 'movie' : 'tv'}/${heroItem.id}?language=en-US&append_to_response=images,content_ratings${
               heroItem.title ? ',release_dates' : ''
             }&include_image_language=en`;
 
-            // Fetch detailed hero data
             fetchTmdb(detailRoute)
-              .then((detailedItem) => {
-                setSpotlightItem(detailedItem);
+              .then((d) => {
+                setSpotlightItem(d);
                 setLoading({ spotlightLoading: false });
               })
-              .catch((err) => {
-                console.error('Error fetching detailed hero data:', err);
+              .catch(() => {
                 setSpotlightItem(heroItem);
                 setLoading({ spotlightLoading: false });
               });
           }
         });
 
-        setCategoryData(newCategoryData);
+        setCategoryData(next);
         setLoading({ isLoading: false });
         setLastFetched(Date.now());
       } catch (err) {
         setError(err.message || 'Failed to load');
         setLoading({ isLoading: false, spotlightLoading: false });
-        console.error('Error loading home data:', err);
+        console.error('home load error', err);
       }
     };
 
-    loadData();
+    load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -320,30 +420,19 @@ const Home = () => {
     <div className="min-h-screen bg-[#090a0a] pb-12 md:pb-0">
       <Header />
 
-      <SpotlightSection
-        item={spotlightItem}
-        isLoading={spotlightLoading}
-        onQuickSearchOpen={handleQuickSearchOpen}
-      />
+      <SpotlightSection item={spotlightItem} isLoading={spotlightLoading} onQuickSearchOpen={handleQuickSearchOpen} />
 
       <div className="px-2 sm:px-4 md:px-8 py-4 sm:py-6 md:py-8 space-y-6 sm:space-y-8">
-        {continueWatchingItems.length > 0 && (
-          <div className="animate-stagger" style={{ animationDelay: '0ms' }}>
-            <EnhancedCategorySection
-              title="Continue Watching"
-              items={continueWatchingItems}
-              isLoading={false}
-              isContinueWatching={true}
-            />
-          </div>
-        )}
+        {/* Single-row Continue Watching with View More */}
+        {continueWatchingItems.length > 0 && <ContinueWatchingRow items={continueWatchingItems} />}
 
-        {categories.map((category, index) => {
-          const items = categoryData[category.title] || [];
+        {/* Regular categories */}
+        {Object.keys(categoryData).map((title, index) => {
+          const items = categoryData[title] || [];
           const delay = continueWatchingItems.length > 0 ? (index + 1) * 200 : index * 200;
           return (
-            <div key={category.title} className="animate-stagger" style={{ animationDelay: `${delay}ms` }}>
-              <EnhancedCategorySection title={category.title} items={items} isLoading={isLoading} />
+            <div key={title} className="animate-stagger" style={{ animationDelay: `${delay}ms` }}>
+              <EnhancedCategorySection title={title} items={items} isLoading={isLoading} />
             </div>
           );
         })}
@@ -351,7 +440,6 @@ const Home = () => {
 
       <Footer />
 
-      {/* QuickSearch Component */}
       <QuickSearch isOpen={isQuickSearchOpen} onOpenChange={setIsQuickSearchOpen} />
     </div>
   );
