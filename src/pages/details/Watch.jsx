@@ -44,9 +44,13 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
     return sourcesWithAds.includes(source);
   };
 
-  const sourceNeedsSandbox = (source) => {
-    const sourcesWithSandbox = ['Videasy'];
-    return sourcesWithSandbox.includes(source);
+  // For sandbox rules
+  const getIframeSandbox = () => {
+    if (currentSource === "Videasy") {
+      // 🚫 Videasy does not support sandbox, disable it
+      return null;
+    }
+    return "allow-same-origin allow-scripts allow-forms allow-presentation";
   };
 
   const currentUrl = isTrailerMode && trailerData 
@@ -59,7 +63,6 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
       setIsMobile(isMobileDevice());
       setIsLandscape(landscape);
       
-      // Use isPhone for orientation prompt (tablets don't need this as much)
       if (isPhone() && !landscape && isOpen && !useMobileLayout) { setShowOrientationPrompt(true); }
       if (isMobileDevice()) { setUseMobileLayout(true); }
     };
@@ -172,14 +175,9 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
     }
   };
 
-  // Check if navigation is possible
   const canGoToPrevious = () => {
     if (mediaType !== 'tv') return false;
-    
-    // Can go to previous episode in current season
     if (currentEpisode > 1) return true;
-    
-    // Can go to previous season
     const availableSeasons = seasons.filter(s => s.season_number > 0).sort((a, b) => a.season_number - b.season_number);
     const currentSeasonIndex = availableSeasons.findIndex(s => s.season_number === currentSeason);
     return currentSeasonIndex > 0;
@@ -187,19 +185,14 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
 
   const canGoToNext = () => {
     if (mediaType !== 'tv' || !currentSeasonDetails) return false;
-    
-    // Can go to next episode in current season
     const maxEpisode = currentSeasonDetails.episodes?.length || 0;
     if (currentEpisode < maxEpisode) return true;
-    
-    // Can go to next season
     const availableSeasons = seasons.filter(s => s.season_number > 0).sort((a, b) => a.season_number - b.season_number);
     const currentSeasonIndex = availableSeasons.findIndex(s => s.season_number === currentSeason);
     return currentSeasonIndex < availableSeasons.length - 1;
   };
 
   const handleSourceChange = (source) => {
-    // Cleanup previous tracking
     if (cleanupRef.current) {
       cleanupRef.current();
       cleanupRef.current = null;
@@ -220,7 +213,6 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
   
   useEffect(() => {
     if (iframeRef.current && currentSource) {
-      // Initialize progress tracking for the current source
       const sourceIndex = sources.indexOf(currentSource);
       cleanupRef.current = initializeSourceTracking(
         iframeRef.current,
@@ -258,13 +250,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
     );
   }
 
-  const getIframeSandbox = () => {
-    if (sourceNeedsSandbox(currentSource)) {
-      return "allow-same-origin allow-scripts allow-forms allow-presentation";
-    }
-    return undefined;
-  };
-
+  // ----------------- MOBILE LAYOUT -----------------
   if (useMobileLayout) {
     return (
       <div className="fixed inset-0 bg-black z-50 flex flex-col">
@@ -332,18 +318,27 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
         </div>
 
         <div className="flex-1">
-          <iframe ref={iframeRef} src={currentUrl} className="w-full h-full" frameBorder="0" allowFullScreen allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" sandbox={getIframeSandbox()} title={currentSource} />
+          <iframe
+            ref={iframeRef}
+            src={currentUrl}
+            className="w-full h-full"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+            title={currentSource}
+            {...(getIframeSandbox() ? { sandbox: getIframeSandbox() } : {})}
+          />
         </div>
       </div>
     );
   }
 
+  // ----------------- DESKTOP LAYOUT -----------------
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-[#131315] border border-white/20 rounded-3xl w-full max-w-6xl max-h-[90vh] flex flex-col relative">
         {/* Header */}
         <div className="flex items-center justify-center p-2 relative">
-          {/* Centered Title */}
           <div className="flex items-center gap-3">
              {!isTrailerMode && mediaType === 'tv' && (
                <button
@@ -386,9 +381,7 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
              )}
           </div>
           
-          {/* Absolutely positioned controls on top right border */}
           <div className="absolute -top-4 -right-4 flex items-center gap-2">
-            {/* Source Switcher */}
             {!isTrailerMode && (
               <DropdownMenu>
                 <DropdownMenuTrigger className="bg-zinc-900 text-white px-4 py-2 rounded-full flex items-center gap-2 hover:bg-zinc-800 transition-colors border-l border border-white/20 cursor-pointer">
@@ -412,7 +405,6 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
               </DropdownMenu>
             )}
 
-            {/* Close Button */}
             <button
               onClick={onClose}
               className="bg-zinc-900 text-white p-2.5 rounded-full hover:bg-zinc-800 transition-colors border-l border border-white/20 cursor-pointer"
@@ -430,10 +422,10 @@ const Watch = ({ isOpen, onClose, onUpdateUrl, mediaType, tmdbId, season = 1, ep
               src={currentUrl}
               className="w-full h-full"
               frameBorder="0"
-              allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              sandbox={getIframeSandbox()}
+              allowFullScreen
               title={currentSource}
+              {...(getIframeSandbox() ? { sandbox: getIframeSandbox() } : {})}
             />
             
             {/* Ad Blocker Disclaimer Overlay */}
