@@ -1,8 +1,8 @@
 // api/m3u8proxy.js
 export const config = { runtime: 'edge' };
 
-// Change to YOUR real upstream for m3u8 proxy if needed
-const UPSTREAM = 'https://p.quickwatch.co';
+// security: only allow http(s)
+const ALLOWED_PROTOCOLS = new Set(['http:', 'https:']);
 
 const HOP_BY_HOP = new Set([
   'connection','keep-alive','proxy-authenticate','proxy-authorization',
@@ -19,55 +19,33 @@ function cors(extra = {}) {
   };
 }
 
-function buildForwardHeaders(req, headersParam) {
+function buildForwardHeaders(req, headerJson) {
   const out = new Headers();
 
+  // copy incoming headers (minus hop-by-hop)
   for (const [k, v] of req.headers.entries()) {
     const lower = k.toLowerCase();
     if (!HOP_BY_HOP.has(lower)) out.set(lower, v);
   }
 
-  // Defaults many upstreams expect
+  // sensible defaults (some origins are picky)
   if (!out.has('user-agent')) out.set('user-agent', 'Mozilla/5.0');
   if (!out.has('accept')) out.set('accept', '*/*');
   if (!out.has('accept-language')) out.set('accept-language', 'en-US,en;q=0.8');
 
-  // Preserve Origin/Referer if the browser sent them
+  // keep Origin/Referer if they were sent
   if (!out.has('origin') && req.headers.get('origin')) out.set('origin', req.headers.get('origin'));
   if (!out.has('referer') && req.headers.get('referer')) out.set('referer', req.headers.get('referer'));
 
-  // Allow overrides from ?headers={}
-  if (headersParam) {
+  // allow explicit overrides via ?headers={}
+  if (headerJson) {
     try {
-      const obj = JSON.parse(headersParam);
+      const obj = JSON.parse(headerJson);
       for (const [k, v] of Object.entries(obj)) out.set(k.toLowerCase(), String(v));
-    } catch {}
+    } catch { /* ignore bad JSON */ }
   }
+
   return out;
-}
-
-function buildDestUrls(inUrl) {
-  // Keep the part after /m3u8proxy (e.g. /m3u8-proxy)
-  const upstreamPath = inUrl.pathname.replace(/^\/m3u8proxy/, '') || '/';
-
-  // Attempt A: raw search (existing behaviour)
-  const A = new URL(UPSTREAM + upstreamPath + inUrl.search);
-
-  // Attempt B: decode the `url` param once and rebuild query
-  const B = new URL(UPSTREAM + upstreamPath);
-  const sp = new URLSearchParams(inUrl.search);
-  const rawUrlParam = sp.get('url');
-  if (rawUrlParam) {
-    try {
-      const decodedOnce = decodeURIComponent(rawUrlParam);
-      sp.set('url', decodedOnce);
-    } catch {
-      // if decode fails, leave it as-is
-    }
-  }
-  B.search = sp.toString() ? `?${sp.toString()}` : '';
-
-  return { A, B };
 }
 
 export default async function handler(req) {
@@ -77,17 +55,38 @@ export default async function handler(req) {
 
   const inUrl = new URL(req.url);
   const debug = inUrl.searchParams.get('__debug') === '1';
-  const headersParam = inUrl.searchParams.get('headers');
 
-  const forwardHeaders = buildForwardHeaders(req, headersParam);
-  const { A, B } = buildDestUrls(inUrl);
+  // read target
+  const rawTarget = inUrl.searchParams.get('url');
+  if (!rawTarget) {
+    return new Response('Missing url', { status: 400, headers: cors() });
+  }
+
+  // the client often sends an already-encoded url; try raw first, then decoded-once
+  let targetStr = rawTarget;
+  let target;
+  try {
+    target = new URL(targetStr);
+  } catch {
+    try {
+      targetStr = decodeURIComponent(rawTarget);
+      target = new URL(targetStr);
+    } catch {
+      return new Response('Invalid url', { status: 400, headers: cors() });
+    }
+  }
+
+  if (!ALLOWED_PROTOCOLS.has(target.protocol)) {
+    return new Response('Unsupported protocol', { status: 400, headers: cors() });
+  }
+
+  const headersParam = inUrl.searchParams.get('headers');
+  const fwdHeaders = buildForwardHeaders(req, headersParam);
 
   if (debug) {
     const preview = {
-      attemptA: A.toString(),
-      attemptB: B.toString(),
-      method: 'GET',
-      headers: [...forwardHeaders.entries()].filter(([k]) => k !== 'authorization'),
+      target: target.toString(),
+      headers: [...fwdHeaders.entries()].filter(([k]) => k !== 'authorization'),
     };
     return new Response(JSON.stringify(preview, null, 2), {
       status: 200,
@@ -95,28 +94,29 @@ export default async function handler(req) {
     });
   }
 
-  // Try Attempt A (raw query)
   try {
-    const r1 = await fetch(A.toString(), { method: 'GET', headers: forwardHeaders, redirect: 'follow' });
-    if (r1.ok || (r1.status >= 200 && r1.status < 500)) {
-      const h = new Headers(r1.headers);
-      for (const [k, v] of Object.entries(cors({ 'x-proxy-diag': 'A' })) ) h.set(k, v);
-      return new Response(r1.body, { status: r1.status, headers: h });
-    }
-    // fallthrough to attempt B if clear server error
-  } catch {}
+    const upstream = await fetch(target.toString(), {
+      method: 'GET',
+      headers: fwdHeaders,
+      redirect: 'follow',
+      // if the origin supports ranges, the browser/player will include Range header; we pass it through
+    });
 
-  // Try Attempt B (decoded url param)
-  try {
-    const r2 = await fetch(B.toString(), { method: 'GET', headers: forwardHeaders, redirect: 'follow' });
-    const h = new Headers(r2.headers);
-    for (const [k, v] of Object.entries(cors({ 'x-proxy-diag': 'B' })) ) h.set(k, v);
-    return new Response(r2.body, { status: r2.status, headers: h });
+    const h = new Headers(upstream.headers);
+    for (const [k, v] of Object.entries(cors())) h.set(k, v);
+
+    // on error codes, try to surface text (helps debugging non-media errors)
+    if (upstream.status >= 400 && !h.get('content-type')?.includes('application/vnd.apple.mpegurl')) {
+      const text = await upstream.text().catch(() => '');
+      return new Response(text || upstream.statusText, { status: upstream.status, headers: h });
+    }
+
+    return new Response(upstream.body, { status: upstream.status, headers: h });
   } catch (err) {
-    const body = { error: 'fetch_failed', message: String(err), attemptA: A.toString(), attemptB: B.toString() };
+    const body = { error: 'fetch_failed', message: String(err), target: target.toString() };
     return new Response(JSON.stringify(body), {
       status: 502,
-      headers: { ...cors(), 'content-type': 'application/json', 'x-proxy-diag': 'EX' }
+      headers: { ...cors(), 'content-type': 'application/json' }
     });
   }
 }
