@@ -1,8 +1,7 @@
 {
-  "functions": { "api/**/*.{js,ts}": { "runtime": "edge" } },
   "rewrites": [
-    { "source": "/proxy/:path*",   "destination": "/api/proxy" },
-    { "source": "/m3u8proxy/:path*","destination": "/api/m3u8proxy" },
+    { "source": "/proxy/:path*", "destination": "/api/proxy" },
+    { "source": "/m3u8proxy/:path*", "destination": "/api/m3u8proxy" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
