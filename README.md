@@ -56,8 +56,19 @@ We welcome all contributions!
 
 ---
 
+## 🙏 Credits
+
+NepoFlix is based on **[QuickWatch](quickwatch.co )**,  
+originally created by **[@varunaditya-plus](https://github.com/varunaditya-plus)** and licensed under the **GNU General Public License (GPL)**.  
+
+We thank the QuickWatch project for providing the foundation that made NepoFlix possible.
+
+---
+
 ## 📝 License
-You can host this project yourself — just give proper credit by linking to this repo.
+
+This project is licensed under the **GNU General Public License v3.0 (GPLv3)**.  
+You are free to use, modify, and share it — but you **must** also give credit and keep it under the GPL license.  
 
 ---
 
