@@ -18,6 +18,9 @@ import NotFound from './pages/404.jsx';
 // import OpenSource from './pages/OpenSource.jsx'; // Removed as file deleted
 import QuickSearch from './components/QuickSearch.jsx';
 import Filter from './pages/browse/Filter.jsx';
+import Login from './pages/auth/Login.jsx';
+import Signup from './pages/auth/Signup.jsx';
+import ContinueWatching from './pages/browse/ContinueWatching.jsx';
 
 export default function App() {
   return (
@@ -28,6 +31,9 @@ export default function App() {
         <Route path="/movies" element={<Movies />} />
         <Route path="/tv" element={<Tv />} />
         <Route path="/filter" element={<Filter />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<Signup />} />
+        <Route path="/continue-watching" element={<ContinueWatching />} />
         <Route path="/movie/:tmdbId" element={<Details />} />
         <Route path="/tv/:tmdbId" element={<Details />} />
         <Route path="/person/:personId" element={<CastDetails />} />

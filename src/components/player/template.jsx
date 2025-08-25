@@ -1,10 +1,13 @@
-import React from 'react';
+// src/components/player/template.jsx
+
+import React, { useEffect } from 'react';
 import { PlaySolid, PauseSolid, SoundOffSolid, SoundLowSolid, SoundHighSolid, Expand, Collapse, ServerSolid } from 'iconoir-react';
 import SubtitleManager from './subtitles';
 import SettingsManager from './settings';
 import SourcesManager from './sources';
 import { formatTime } from './helpers';
 import { isMobileDevice } from '../../utils';
+import { attachProgressTracking } from './helpers'; // <-- ADDED
 
 const ControlButton = ({ onClick, children, className = "", ...props }) => {
   const baseClasses = "border-none cursor-pointer p-2 rounded-lg flex items-center justify-center transition-all duration-200 ease-in-out w-[46px] h-[46px] relative overflow-hidden focus:outline-none";
@@ -106,13 +109,31 @@ const PlayerTemplate = ({
   onVolumeSliderMouseLeave,
   onVolumeSliderMouseDown,
   onVolumeSliderHoverEnter,
-  onVolumeSliderHoverLeave
+  onVolumeSliderHoverLeave,
+
+  // NEW: progress persistence meta (optional)
+  // { id, mediaType, season=0, episode=0, sourceIndex=0 }
+  progressMeta
 }) => {
   const getVolumeIcon = () => {
     if (isMuted || volume === 0) { return <SoundOffSolid width="24" height="24" />; }
     else if (volume < 0.7) { return <SoundLowSolid width="24" height="24" />; }
     else { return <SoundHighSolid width="24" height="24" />; }
   };
+
+  // Attach progress tracking (Supabase/localStorage) once refs/meta are ready
+  useEffect(() => {
+    if (!videoRef?.current || !progressMeta) return;
+    const cleanup = attachProgressTracking(videoRef, progressMeta);
+    return () => cleanup && cleanup();
+  }, [
+    videoRef,
+    progressMeta?.id,
+    progressMeta?.mediaType,
+    progressMeta?.season,
+    progressMeta?.episode,
+    progressMeta?.sourceIndex
+  ]);
 
   return (
     <div ref={playerRef} className={`fixed top-0 left-0 w-screen h-screen bg-black ${showControls ? 'cursor-default' : 'cursor-none'}`} onMouseMove={onMouseMove} onClick={onTogglePlay}>

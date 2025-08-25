@@ -1,36 +1,52 @@
+// src/components/player/main.jsx
+
 import React, { useEffect, useState, useRef } from 'react';
 import PlayerTemplate from './template';
-import { initializeVideo, setupVideoEventListeners, handleSeek, skipTime, togglePlay, toggleMute, handleVolumeChange, toggleFullscreen, togglePictureInPicture, showControlsTemporarily, parseTimeToSeconds, changePlaybackSpeed, changeQuality } from './helpers';
-import { saveProgress, getProgress } from '../progress';
+import {
+  initializeVideo,
+  setupVideoEventListeners,
+  handleSeek,
+  skipTime,
+  togglePlay,
+  toggleMute,
+  handleVolumeChange,
+  toggleFullscreen,
+  togglePictureInPicture,
+  showControlsTemporarily,
+  parseTimeToSeconds,
+  changePlaybackSpeed,
+  changeQuality,
+} from './helpers';
+import { getProgressForItem } from '../../utils.jsx';
 import { isMobileDevice } from '../../utils';
 
-const VideoPlayer = ({ 
-  videoUrl, 
-  onError, 
+const VideoPlayer = ({
+  videoUrl,
+  onError,
 
-  showCaptionsPopup, 
-  setShowCaptionsPopup, 
-  subtitlesEnabled, 
-  subtitleError, 
-  subtitlesLoading, 
-  availableSubtitles, 
-  selectedSubtitle, 
-  onSelectSubtitle, 
-  subtitleCues, 
+  showCaptionsPopup,
+  setShowCaptionsPopup,
+  subtitlesEnabled,
+  subtitleError,
+  subtitlesLoading,
+  availableSubtitles,
+  selectedSubtitle,
+  onSelectSubtitle,
+  subtitleCues,
 
   availableQualities: externalQualities,
   selectedQuality: externalSelectedQuality,
   onQualityChange: externalOnQualityChange,
 
-  mediaId, 
-  mediaType, 
-  season = 0, 
-  episode = 0, 
-  
+  mediaId,
+  mediaType,
+  season = 0,
+  episode = 0,
+
   sourceIndex = 0,
   usedSource,
   manualSourceOverride,
-  setManualSourceOverride
+  setManualSourceOverride,
 }) => {
   // Video state
   const [isPlaying, setIsPlaying] = useState(false);
@@ -45,22 +61,22 @@ const VideoPlayer = ({
   const [bufferedAmount, setBufferedAmount] = useState(0);
   const [isProgressHovered, setIsProgressHovered] = useState(false);
   const [isVideoLoading, setIsVideoLoading] = useState(true);
-  
+
   // Volume slider state
   const [showVolumeSlider, setShowVolumeSlider] = useState(false);
   const [isVolumeDragging, setIsVolumeDragging] = useState(false);
   const [isVolumeHovered, setIsVolumeHovered] = useState(false);
-  
+
   // Subtitle state
   const [currentSubtitleText, setCurrentSubtitleText] = useState('');
-  
+
   // Subtitle settings state
   const [subtitleSettings, setSubtitleSettings] = useState({
     fontSize: 18,
     delay: 0,
-    position: 'center'
+    position: 'center',
   });
-  
+
   // Settings state
   const [showSettingsPopup, setShowSettingsPopup] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -68,143 +84,108 @@ const VideoPlayer = ({
   const [selectedQuality, setSelectedQuality] = useState(null);
   const [qualitiesLoading, setQualitiesLoading] = useState(false);
   const [volumeBoost, setVolumeBoost] = useState(0);
-  
+
   // Source management state
   const [showSourcesPopup, setShowSourcesPopup] = useState(false);
-  
+
   // Progress tracking state
   const [progressLoaded, setProgressLoaded] = useState(false);
   const [savedProgress, setSavedProgress] = useState(null);
-  
+
   // Refs
   const videoRef = useRef(null);
   const hlsRef = useRef(null);
   const playerRef = useRef(null);
   const controlsTimeoutRef = useRef(null);
   const progressBarRef = useRef(null);
-  const progressSaveTimeoutRef = useRef(null);
   const volumeTimeoutRef = useRef(null);
   const volumeSliderRef = useRef(null);
-  
+
   // Web Audio API refs for volume boost
   const audioContextRef = useRef(null);
   const gainNodeRef = useRef(null);
   const sourceNodeRef = useRef(null);
 
+  // Load saved progress from Supabase/localStorage
   useEffect(() => {
-    if (mediaId && mediaType) {
-      const existingProgress = getProgress(parseInt(mediaId), mediaType, parseInt(season), parseInt(episode));
-      setSavedProgress(existingProgress);
-      setProgressLoaded(false);
-      console.log('Loaded saved progress:', existingProgress);
-    }
-  }, [mediaId, mediaType, season, episode]);
+    let cancelled = false;
+    (async () => {
+      if (mediaId && mediaType) {
+        try {
+          const existing = await getProgressForItem({
+            id: Number(mediaId),
+            mediaType,
+            season: Number(season),
+            episode: Number(episode),
+            sourceIndex: Number(sourceIndex),
+          });
+          if (!cancelled) {
+            setSavedProgress(existing || null);
+            setProgressLoaded(false);
+            if (existing) {
+              console.log('Loaded saved progress:', existing);
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to load saved progress:', e);
+          if (!cancelled) {
+            setSavedProgress(null);
+            setProgressLoaded(true);
+          }
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mediaId, mediaType, season, episode, sourceIndex]);
 
+  // Restore position once the video can report duration/currentTime
   useEffect(() => {
-    if (!progressLoaded && savedProgress && savedProgress.watchedDuration > 0 && videoRef.current) {
+    if (!videoRef.current) return;
+
+    if (!progressLoaded && savedProgress && savedProgress.watchedDuration > 0) {
       const restorePosition = () => {
-        if (videoRef.current && videoRef.current.duration > 0 && videoRef.current.readyState >= 2) {
+        const v = videoRef.current;
+        if (!v) return;
+        if (v.duration > 0 && v.readyState >= 2) {
           const targetTime = savedProgress.watchedDuration;
           console.log(`Restoring video position to: ${targetTime} seconds`);
-          videoRef.current.currentTime = targetTime;
+          v.currentTime = targetTime;
           setProgressLoaded(true);
-          
-          // Remove all event listeners
-          videoRef.current.removeEventListener('loadedmetadata', restorePosition);
-          videoRef.current.removeEventListener('loadeddata', restorePosition);
-          videoRef.current.removeEventListener('canplay', restorePosition);
-          videoRef.current.removeEventListener('canplaythrough', restorePosition);
+
+          v.removeEventListener('loadedmetadata', restorePosition);
+          v.removeEventListener('loadeddata', restorePosition);
+          v.removeEventListener('canplay', restorePosition);
+          v.removeEventListener('canplaythrough', restorePosition);
         }
       };
 
-      // Try to restore immediately if video is already ready
-      if (videoRef.current.duration > 0 && videoRef.current.readyState >= 2) {
+      // Try now, or wait for readiness
+      const v = videoRef.current;
+      if (v.duration > 0 && v.readyState >= 2) {
         restorePosition();
       } else {
-        // Add multiple event listeners to catch when video becomes ready
-        videoRef.current.addEventListener('loadedmetadata', restorePosition);
-        videoRef.current.addEventListener('loadeddata', restorePosition);
-        videoRef.current.addEventListener('canplay', restorePosition);
-        videoRef.current.addEventListener('canplaythrough', restorePosition);
+        v.addEventListener('loadedmetadata', restorePosition);
+        v.addEventListener('loadeddata', restorePosition);
+        v.addEventListener('canplay', restorePosition);
+        v.addEventListener('canplaythrough', restorePosition);
       }
 
-      // Cleanup function
+      // Cleanup
       return () => {
-        if (videoRef.current) {
-          videoRef.current.removeEventListener('loadedmetadata', restorePosition);
-          videoRef.current.removeEventListener('loadeddata', restorePosition);
-          videoRef.current.removeEventListener('canplay', restorePosition);
-          videoRef.current.removeEventListener('canplaythrough', restorePosition);
+        const vv = videoRef.current;
+        if (vv) {
+          vv.removeEventListener('loadedmetadata', restorePosition);
+          vv.removeEventListener('loadeddata', restorePosition);
+          vv.removeEventListener('canplay', restorePosition);
+          vv.removeEventListener('canplaythrough', restorePosition);
         }
       };
     } else if (!savedProgress || savedProgress.watchedDuration <= 0) {
       setProgressLoaded(true);
     }
   }, [savedProgress, progressLoaded, videoUrl]);
-
-  // Save progress every 2 seconds unconditionally
-  useEffect(() => {
-    if (mediaId && mediaType && duration > 0) {
-      // Clear existing timeout
-      if (progressSaveTimeoutRef.current) {
-        clearTimeout(progressSaveTimeoutRef.current);
-      }
-      
-      // Save progress every 2 seconds regardless of conditions
-      progressSaveTimeoutRef.current = setTimeout(() => {
-        saveProgress({
-          id: parseInt(mediaId),
-          mediaType: mediaType,
-          season: parseInt(season),
-          episode: parseInt(episode),
-          sourceIndex: parseInt(sourceIndex),
-          fullDuration: Math.floor(duration),
-          watchedDuration: Math.floor(currentTime),
-          timestamp: Date.now()
-        });
-      }, 2000);
-    }
-    
-    return () => {
-      if (progressSaveTimeoutRef.current) {
-        clearTimeout(progressSaveTimeoutRef.current);
-      }
-    };
-  }, [currentTime, duration, mediaId, mediaType, season, episode, sourceIndex]);
-
-  // Helper function to save progress immediately
-  const saveProgressNow = () => {
-    if (mediaId && mediaType && duration > 0) {
-      saveProgress({
-        id: parseInt(mediaId),
-        mediaType: mediaType,
-        season: parseInt(season),
-        episode: parseInt(episode),
-        sourceIndex: parseInt(sourceIndex),
-        fullDuration: Math.floor(duration),
-        watchedDuration: Math.floor(currentTime),
-        timestamp: Date.now()
-      });
-    }
-  };
-
-  // Save progress when component unmounts or video changes
-  useEffect(() => {
-    return () => {
-      if (mediaId && mediaType && currentTime > 0 && duration > 0) {
-        saveProgress({
-          id: parseInt(mediaId),
-          mediaType: mediaType,
-          season: parseInt(season),
-          episode: parseInt(episode),
-          sourceIndex: parseInt(sourceIndex),
-          fullDuration: Math.floor(duration),
-          watchedDuration: Math.floor(currentTime),
-          timestamp: Date.now()
-        });
-      }
-    };
-  }, [videoUrl, mediaId, mediaType, season, episode, sourceIndex]);
 
   // Cleanup audio context on unmount
   useEffect(() => {
@@ -237,9 +218,18 @@ const VideoPlayer = ({
   }, [videoUrl, onError]);
 
   useEffect(() => {
-    const cleanup = setupVideoEventListeners(videoRef, setCurrentTime, setDuration, setIsPlaying, setVolume, setIsMuted, setIsPictureInPicture, setBufferedAmount);
-    
-    const handleCanPlay = () => { 
+    const cleanup = setupVideoEventListeners(
+      videoRef,
+      setCurrentTime,
+      setDuration,
+      setIsPlaying,
+      setVolume,
+      setIsMuted,
+      setIsPictureInPicture,
+      setBufferedAmount
+    );
+
+    const handleCanPlay = () => {
       setIsVideoLoading(false);
       setupAudioContext();
     };
@@ -247,29 +237,28 @@ const VideoPlayer = ({
     const handleLoadStart = () => { setIsVideoLoading(true); };
     const handleSeeking = () => { setIsVideoLoading(true); };
     const handleSeeked = () => { setIsVideoLoading(false); };
-    
+
     // Optimize buffering for partial content
-    const handleProgress = () => {
+    const handleProgressBuffered = () => {
       if (videoRef.current && videoRef.current.buffered.length > 0) {
         const buffered = videoRef.current.buffered;
-        const currentTime = videoRef.current.currentTime;
-        
-        // Calculate buffered amount more accurately
+        const ct = videoRef.current.currentTime;
+
         let bufferedEnd = 0;
         for (let i = 0; i < buffered.length; i++) {
-          if (buffered.start(i) <= currentTime && buffered.end(i) > currentTime) {
+          if (buffered.start(i) <= ct && buffered.end(i) > ct) {
             bufferedEnd = buffered.end(i);
             break;
           }
         }
-        
+
         if (bufferedEnd === 0 && buffered.length > 0) {
           bufferedEnd = buffered.end(buffered.length - 1);
         }
-        
-        const duration = videoRef.current.duration;
-        if (duration > 0) {
-          setBufferedAmount((bufferedEnd / duration) * 100);
+
+        const dur = videoRef.current.duration;
+        if (dur > 0) {
+          setBufferedAmount((bufferedEnd / dur) * 100);
         }
       }
     };
@@ -280,18 +269,18 @@ const VideoPlayer = ({
       videoRef.current.addEventListener('loadstart', handleLoadStart);
       videoRef.current.addEventListener('seeking', handleSeeking);
       videoRef.current.addEventListener('seeked', handleSeeked);
-      videoRef.current.addEventListener('progress', handleProgress);
+      videoRef.current.addEventListener('progress', handleProgressBuffered);
     }
 
     return () => {
-      cleanup();
+      cleanup && cleanup();
       if (videoRef.current) {
         videoRef.current.removeEventListener('canplay', handleCanPlay);
         videoRef.current.removeEventListener('waiting', handleWaiting);
         videoRef.current.removeEventListener('loadstart', handleLoadStart);
         videoRef.current.removeEventListener('seeking', handleSeeking);
         videoRef.current.removeEventListener('seeked', handleSeeked);
-        videoRef.current.removeEventListener('progress', handleProgress);
+        videoRef.current.removeEventListener('progress', handleProgressBuffered);
       }
     };
   }, [videoUrl]);
@@ -326,7 +315,7 @@ const VideoPlayer = ({
 
     const adjustedTime = currentTime - subtitleSettings.delay;
 
-    const currentCue = subtitleCues.find(cue => {
+    const currentCue = subtitleCues.find((cue) => {
       const startTime = parseTimeToSeconds(cue.startTime);
       const endTime = parseTimeToSeconds(cue.endTime);
       return adjustedTime >= startTime && adjustedTime <= endTime;
@@ -339,13 +328,15 @@ const VideoPlayer = ({
     if (!videoRef.current) return;
 
     // Only load native tracks on mobile devices
-    if (!isMobileDevice()) { return; }
+    if (!isMobileDevice()) {
+      return;
+    }
 
     const video = videoRef.current;
-    
+
     // Remove existing subtitle tracks
     const existingTracks = video.querySelectorAll('track[kind="subtitles"]');
-    existingTracks.forEach(track => track.remove());
+    existingTracks.forEach((track) => track.remove());
 
     // Add new subtitle track if one is selected
     if (selectedSubtitle && selectedSubtitle.url) {
@@ -354,26 +345,28 @@ const VideoPlayer = ({
       track.label = selectedSubtitle.display || selectedSubtitle.language || 'Subtitles';
       track.srclang = selectedSubtitle.language || 'en';
       track.default = true;
-      
+
       if (selectedSubtitle.url.includes('.srt') || selectedSubtitle.format === 'srt') {
-        convertSRTToVTTBlob(selectedSubtitle.url).then(vttBlob => {
-          if (vttBlob) {
-            track.src = URL.createObjectURL(vttBlob);
-            video.appendChild(track);
-            
-            track.addEventListener('load', () => {
-              if (track.track) {
-                track.track.mode = subtitlesEnabled ? 'showing' : 'hidden';
-              }
-            });
-          }
-        }).catch(err => {
-          console.error('Failed to convert SRT to VTT:', err);
-        });
+        convertSRTToVTTBlob(selectedSubtitle.url)
+          .then((vttBlob) => {
+            if (vttBlob) {
+              track.src = URL.createObjectURL(vttBlob);
+              video.appendChild(track);
+
+              track.addEventListener('load', () => {
+                if (track.track) {
+                  track.track.mode = subtitlesEnabled ? 'showing' : 'hidden';
+                }
+              });
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to convert SRT to VTT:', err);
+          });
       } else {
         track.src = selectedSubtitle.url;
         video.appendChild(track);
-        
+
         // Enable the track
         track.addEventListener('load', () => {
           if (track.track) {
@@ -396,16 +389,16 @@ const VideoPlayer = ({
     try {
       const response = await fetch(srtUrl, {
         mode: 'cors',
-        headers: {'Accept': 'text/plain, text/vtt, application/x-subrip'}
+        headers: { Accept: 'text/plain, text/vtt, application/x-subrip' },
       });
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch SRT: ${response.status}`);
       }
-      
+
       const srtText = await response.text();
       const vttText = convertSRTToVTT(srtText);
-      
+
       return new Blob([vttText], { type: 'text/vtt' });
     } catch (err) {
       console.error('Error converting SRT to VTT:', err);
@@ -416,21 +409,21 @@ const VideoPlayer = ({
   // Helper function to convert SRT format to VTT format
   const convertSRTToVTT = (srtText) => {
     let vttText = 'WEBVTT\n\n';
-    
+
     const blocks = srtText.trim().split(/\n\s*\n/);
-    
-    blocks.forEach(block => {
+
+    blocks.forEach((block) => {
       const lines = block.trim().split('\n');
       if (lines.length >= 3) {
         const timeString = lines[1];
         const text = lines.slice(2).join('\n');
-        
+
         const vttTimeString = timeString.replace(/,/g, '.');
-        
+
         vttText += `${vttTimeString}\n${text}\n\n`;
       }
     });
-    
+
     return vttText;
   };
 
@@ -438,7 +431,9 @@ const VideoPlayer = ({
   useEffect(() => {
     if (isDragging) {
       const handleGlobalMouseMove = (e) => {
-        if (isDragging) { handleSeek(e, videoRef, duration, progressBarRef) };
+        if (isDragging) {
+          handleSeek(e, videoRef, duration, progressBarRef);
+        }
       };
       const handleGlobalMouseUp = () => setIsDragging(false);
 
@@ -456,7 +451,9 @@ const VideoPlayer = ({
   useEffect(() => {
     if (isVolumeDragging) {
       const handleGlobalMouseMove = (e) => {
-        if (isVolumeDragging) { handleVolumeSliderSeek(e) };
+        if (isVolumeDragging) {
+          handleVolumeSliderSeek(e);
+        }
       };
       const handleGlobalMouseUp = () => setIsVolumeDragging(false);
 
@@ -473,11 +470,11 @@ const VideoPlayer = ({
   // Volume slider timeout management
   const showVolumeSliderTemporarily = () => {
     setShowVolumeSlider(true);
-    
+
     if (volumeTimeoutRef.current) {
       clearTimeout(volumeTimeoutRef.current);
     }
-    
+
     volumeTimeoutRef.current = setTimeout(() => {
       setShowVolumeSlider(false);
     }, 5000);
@@ -491,7 +488,7 @@ const VideoPlayer = ({
     if (volumeTimeoutRef.current) {
       clearTimeout(volumeTimeoutRef.current);
     }
-    
+
     volumeTimeoutRef.current = setTimeout(() => {
       setShowVolumeSlider(false);
     }, 300);
@@ -509,7 +506,7 @@ const VideoPlayer = ({
     if (volumeTimeoutRef.current) {
       clearTimeout(volumeTimeoutRef.current);
     }
-    
+
     volumeTimeoutRef.current = setTimeout(() => {
       setShowVolumeSlider(false);
     }, 300);
@@ -523,13 +520,11 @@ const VideoPlayer = ({
 
   const handleTogglePlay = () => {
     togglePlay(isPlaying, videoRef);
-    saveProgressNow();
   };
 
   const handleProgressMouseDown = (e) => {
     setIsDragging(true);
     handleSeek(e, videoRef, duration, progressBarRef);
-    saveProgressNow();
     e.preventDefault();
   };
 
@@ -543,23 +538,19 @@ const VideoPlayer = ({
 
   const handleSkipTime = (seconds) => {
     skipTime(seconds, videoRef);
-    saveProgressNow();
   };
 
   const handleToggleMute = () => {
     toggleMute(videoRef);
-    saveProgressNow();
   };
 
   const handleVolumeChangeEvent = (e) => {
     handleVolumeChange(e, videoRef);
-    saveProgressNow();
   };
 
   const handleVolumeSliderMouseDown = (e) => {
     setIsVolumeDragging(true);
     handleVolumeSliderSeek(e);
-    saveProgressNow();
     e.preventDefault();
   };
 
@@ -569,28 +560,23 @@ const VideoPlayer = ({
       const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
       videoRef.current.volume = pos;
       videoRef.current.muted = pos === 0;
-      saveProgressNow();
     }
   };
 
   const handleToggleFullscreen = () => {
     toggleFullscreen(playerRef, setIsFullscreen);
-    saveProgressNow();
   };
 
   const handleTogglePictureInPicture = () => {
     togglePictureInPicture(videoRef, isPictureInPicture);
-    saveProgressNow();
   };
 
   const handleSelectSubtitle = (subtitle) => {
     onSelectSubtitle(subtitle, videoRef);
-    saveProgressNow();
   };
 
   const handleSubtitleSettingsChange = (newSettings) => {
-    setSubtitleSettings(prev => ({ ...prev, ...newSettings }));
-    saveProgressNow();
+    setSubtitleSettings((prev) => ({ ...prev, ...newSettings }));
   };
 
   const handleVideoError = (e) => {
@@ -602,7 +588,6 @@ const VideoPlayer = ({
   const handleSpeedChange = (speed) => {
     setPlaybackSpeed(speed);
     changePlaybackSpeed(speed, videoRef);
-    saveProgressNow();
   };
 
   const handleQualityChange = async (quality) => {
@@ -612,13 +597,11 @@ const VideoPlayer = ({
       setSelectedQuality(quality);
       await changeQuality(quality, hlsRef, videoRef, currentTime);
     }
-    saveProgressNow();
   };
 
   const handleVolumeBoostChange = (boost) => {
     setVolumeBoost(boost);
     applyVolumeBoost(boost);
-    saveProgressNow();
   };
 
   // Setup Web Audio API for volume boost
@@ -647,7 +630,7 @@ const VideoPlayer = ({
   const applyVolumeBoost = (boost) => {
     if (gainNodeRef.current) {
       // Convert percentage to gain multiplier (0% = 1x, 100% = 2x, 300% = 4x)
-      const gainValue = 1 + (boost / 100);
+      const gainValue = 1 + boost / 100;
       gainNodeRef.current.gain.setValueAtTime(gainValue, audioContextRef.current.currentTime);
     }
   };
@@ -656,7 +639,6 @@ const VideoPlayer = ({
   const handleSourceChange = (source) => {
     if (setManualSourceOverride) {
       setManualSourceOverride(source);
-      saveProgressNow();
     }
   };
 
@@ -667,7 +649,24 @@ const VideoPlayer = ({
         return;
       }
 
-      const handledKeys = [' ', 'Spacebar', 'k', 'K', 'ArrowRight', 'l', 'L', 'ArrowLeft', 'j', 'J', 'ArrowUp', 'ArrowDown', 'm', 'M', 'f', 'F'];
+      const handledKeys = [
+        ' ',
+        'Spacebar',
+        'k',
+        'K',
+        'ArrowRight',
+        'l',
+        'L',
+        'ArrowLeft',
+        'j',
+        'J',
+        'ArrowUp',
+        'ArrowDown',
+        'm',
+        'M',
+        'f',
+        'F',
+      ];
       if (handledKeys.includes(e.key)) {
         e.preventDefault();
         e.stopPropagation();
@@ -685,21 +684,21 @@ const VideoPlayer = ({
         case 'K':
           handleTogglePlay();
           break;
-        
+
         // +10s: Right arrow or L
         case 'ArrowRight':
         case 'l':
         case 'L':
           handleSkipTime(10);
           break;
-        
+
         // -10s: Left arrow or J
         case 'ArrowLeft':
         case 'j':
         case 'J':
           handleSkipTime(-10);
           break;
-        
+
         // Volume controls
         case 'ArrowUp':
           if (videoRef.current) {
@@ -708,7 +707,6 @@ const VideoPlayer = ({
             if (videoRef.current.muted && newVolume > 0) {
               videoRef.current.muted = false;
             }
-            saveProgressNow();
           }
           break;
 
@@ -719,22 +717,21 @@ const VideoPlayer = ({
             if (newVolume === 0) {
               videoRef.current.muted = true;
             }
-            saveProgressNow();
           }
           break;
-        
+
         // Mute: M
         case 'm':
         case 'M':
           handleToggleMute();
           break;
-        
+
         // Fullscreen: F
         case 'f':
         case 'F':
           handleToggleFullscreen();
           break;
-        
+
         default:
           break;
       }
@@ -745,7 +742,7 @@ const VideoPlayer = ({
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isPlaying, handleTogglePlay, handleSkipTime, handleToggleMute, handleToggleFullscreen]);
+  }, [isPlaying]);
 
   return (
     <PlayerTemplate
@@ -753,7 +750,14 @@ const VideoPlayer = ({
       videoRef={videoRef}
       playerRef={playerRef}
       progressBarRef={progressBarRef}
-      
+      // NEW: progress persistence meta (used by PlayerTemplate -> attachProgressTracking)
+      progressMeta={{
+        id: mediaId ? Number(mediaId) : null,
+        mediaType,
+        season: Number(season) || 0,
+        episode: Number(episode) || 0,
+        sourceIndex: Number(sourceIndex) || 0,
+      }}
       // Video state
       isPlaying={isPlaying}
       currentTime={currentTime}
@@ -767,13 +771,11 @@ const VideoPlayer = ({
       isFullscreen={isFullscreen}
       isPictureInPicture={isPictureInPicture}
       isVideoLoading={isVideoLoading}
-      
       // Volume slider state
       showVolumeSlider={showVolumeSlider}
       isVolumeDragging={isVolumeDragging}
       isVolumeHovered={isVolumeHovered}
       volumeSliderRef={volumeSliderRef}
-      
       // Subtitle state
       showCaptionsPopup={showCaptionsPopup}
       setShowCaptionsPopup={setShowCaptionsPopup}
@@ -785,7 +787,6 @@ const VideoPlayer = ({
       currentSubtitleText={currentSubtitleText}
       subtitleSettings={subtitleSettings}
       onSubtitleSettingsChange={handleSubtitleSettingsChange}
-      
       // Settings state
       showSettingsPopup={showSettingsPopup}
       setShowSettingsPopup={setShowSettingsPopup}
@@ -795,13 +796,11 @@ const VideoPlayer = ({
       qualitiesLoading={qualitiesLoading}
       volumeBoost={volumeBoost}
       onVolumeBoostChange={handleVolumeBoostChange}
-      
       // Source management state
       showSourcesPopup={showSourcesPopup}
       setShowSourcesPopup={setShowSourcesPopup}
       usedSource={usedSource}
       onSourceChange={handleSourceChange}
-      
       // Event handlers
       onMouseMove={handleMouseMove}
       onTogglePlay={handleTogglePlay}
@@ -817,7 +816,6 @@ const VideoPlayer = ({
       onVideoError={handleVideoError}
       onSpeedChange={handleSpeedChange}
       onQualityChange={handleQualityChange}
-      
       // Volume slider handlers
       onVolumeMouseEnter={handleVolumeMouseEnter}
       onVolumeMouseLeave={handleVolumeMouseLeave}
